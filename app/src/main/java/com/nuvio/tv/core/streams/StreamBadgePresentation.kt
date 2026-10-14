@@ -72,22 +72,17 @@ class StreamBadgePresentation @Inject constructor(
     ): List<StreamBadge> {
         val all = existing + matched
         val hasVerifiedLatino = all.any { it.name.contains("LATINO (Verificado)") }
-        val hasVerifiedCastellano = all.any { it.name.contains("CASTELLANO (Verificado)") }
         val hasNoLatino = all.any { it.name.startsWith("🚫 Sin Latino") }
 
         val capacity = existing.size + matched.size
         val merged = LinkedHashMap<String, StreamBadge>(capacity)
         for (badge in all) {
-            if (hasNoLatino && (badge.name.contains("LATINO", ignoreCase = true) || badge.name.contains("CASTELLANO", ignoreCase = true)) && !badge.name.contains("Sin Latino", ignoreCase = true)) {
+            // Drop unverified Latino badges if Latino was probed as absent
+            if (hasNoLatino && badge.name.contains("LATINO", ignoreCase = true) && !badge.name.contains("Sin Latino", ignoreCase = true)) {
                 continue
             }
+            // Drop plain Latino if verified Latino is present
             if (hasVerifiedLatino && badge.name == "🇲🇽 LATINO") {
-                continue
-            }
-            if (hasVerifiedLatino && !hasVerifiedCastellano && badge.name == "🇪🇸 CASTELLANO") {
-                continue
-            }
-            if (hasVerifiedCastellano && badge.name == "🇪🇸 CASTELLANO") {
                 continue
             }
             val key = badge.dedupeKey()

@@ -42,7 +42,6 @@ object NativeStreamBadgeDetector {
         val multi = isMulti(stream)
 
         val hasVerifiedLatino = stream.badges.any { it.name.contains("LATINO (Verificado)") }
-        val hasVerifiedCastellano = stream.badges.any { it.name.contains("CASTELLANO (Verificado)") }
         val hasNoLatino = stream.badges.any { it.name.startsWith("🚫 Sin Latino") }
 
         if (remux) {
@@ -74,14 +73,7 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (hasVerifiedCastellano) {
-            badges += StreamBadge(
-                name = "🇪🇸 CASTELLANO (Verificado)",
-                tagColor = "#B45309",
-                textColor = "#FFFFFF",
-                borderColor = "#F59E0B"
-            )
-        } else if (!hasVerifiedLatino && !hasNoLatino && castellano) {
+        if (castellano) {
             badges += StreamBadge(
                 name = "🇪🇸 CASTELLANO",
                 tagColor = "#B45309",
@@ -90,7 +82,7 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (multi && !latino && !castellano && !hasVerifiedLatino && !hasVerifiedCastellano) {
+        if (multi && !latino && !castellano && !hasVerifiedLatino) {
             badges += StreamBadge(
                 name = "🌐 MULTI",
                 tagColor = "#1D4ED8",
@@ -112,7 +104,6 @@ object NativeStreamBadgeDetector {
     fun isLatino(stream: Stream, latinTitles: List<String> = emptyList()): Boolean {
         if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
         if (stream.badges.any { it.name.contains("LATINO (Verificado)") }) return true
-        if (stream.badges.any { it.name.contains("CASTELLANO (Verificado)") }) return false
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 
@@ -129,9 +120,6 @@ object NativeStreamBadgeDetector {
     }
 
     fun isCastellano(stream: Stream): Boolean {
-        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
-        if (stream.badges.any { it.name.contains("CASTELLANO (Verificado)") }) return true
-        if (stream.badges.any { it.name.contains("LATINO (Verificado)") && !it.name.contains("CASTELLANO (Verificado)") }) return false
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 

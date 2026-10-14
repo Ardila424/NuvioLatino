@@ -260,8 +260,6 @@ class TraktAuthService @Inject constructor(
     }
 
     suspend fun refreshTokenIfNeeded(force: Boolean = false): Boolean {
-        if (!hasRequiredCredentials()) return false
-
         return tokenRefreshMutex.withLock {
             val state = getCurrentAuthState()
             val refreshToken = state.refreshToken ?: return@withLock false
@@ -269,6 +267,7 @@ class TraktAuthService @Inject constructor(
                 trace("refreshTokenIfNeeded: token still valid, skip refresh")
                 return@withLock true
             }
+            if (!hasRequiredCredentials()) return@withLock false
 
             trace("refreshTokenIfNeeded: refreshing token (force=$force)")
             val response = try {
@@ -493,8 +492,12 @@ class TraktAuthService @Inject constructor(
 
     private suspend fun getValidAccessToken(): String? {
         val state = getCurrentAuthState()
-        if (state.accessToken.isNullOrBlank()) return null
-        if (refreshTokenIfNeeded(force = false)) {
+        val accessToken = state.accessToken
+        if (accessToken.isNullOrBlank()) return null
+        if (!isTokenExpiredOrExpiring(state)) {
+            return accessToken
+        }
+        if (refreshTokenIfNeeded(force = true)) {
             return getCurrentAuthState().accessToken
         }
         return null

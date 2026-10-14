@@ -373,4 +373,34 @@ interface TraktApi {
         @Header("Authorization") authorization: String,
         @Body body: TraktListItemsMutationRequestDto
     ): Response<TraktListItemsMutationResponseDto>
+
+    @GET("recommendations/movies")
+    suspend fun getRecommendedMovies(
+        @Header("Authorization") authorization: String,
+        @Query("extended") extended: String = "full,images",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+        @Query("ignore_collected") ignoreCollected: Boolean = true
+    ): Response<List<TraktMovieDto>>
+
+    @GET("recommendations/shows")
+    suspend fun getRecommendedShows(
+        @Header("Authorization") authorization: String,
+        @Query("extended") extended: String = "full,images",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+        @Query("ignore_collected") ignoreCollected: Boolean = true
+    ): Response<List<TraktShowDto>>
+
+    @DELETE("recommendations/movies/{id}")
+    suspend fun hideRecommendedMovie(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: String
+    ): Response<Unit>
+
+    @DELETE("recommendations/shows/{id}")
+    suspend fun hideRecommendedShow(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: String
+    ): Response<Unit>
 }

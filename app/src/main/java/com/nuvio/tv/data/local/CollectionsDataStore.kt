@@ -417,10 +417,10 @@ class CollectionsDataStore @Inject constructor(
                 )
             }
             "trakt" -> {
-                val id = traktListId?.takeIf { it > 0L } ?: return null
+                val id = traktListId?.takeIf { it != 0L } ?: return null
                 TraktCollectionSource(
                     title = title?.takeIf { it.isNotBlank() }
-                        ?: string(R.string.collections_editor_trakt_list_with_id, id),
+                        ?: if (id == -1L) "Recommended for You" else string(R.string.collections_editor_trakt_list_with_id, id),
                     traktListId = id,
                     mediaType = mediaType?.let { raw ->
                         runCatching { TmdbCollectionMediaType.valueOf(raw.uppercase()) }.getOrNull()

@@ -207,24 +207,45 @@ class NativeStreamBadgeDetectorTest {
     }
 
     @Test
-    fun `verified castellano badge renders CASTELLANO (Verificado) and suppresses latino`() {
+    fun `castellano badge is preserved alongside verified latino`() {
         val stream = createStream(
-            filename = "Movie.2024.Dual-Latino.2160p.Remux.mkv"
+            filename = "Movie.2024.Castellano.2160p.Remux.mkv"
         ).copy(
             badges = listOf(
                 com.nuvio.tv.domain.model.StreamBadge(
-                    name = "🇪🇸 CASTELLANO (Verificado)",
-                    tagColor = "#B45309",
+                    name = "🇲🇽 LATINO (Verificado)",
+                    tagColor = "#059669",
                     textColor = "#FFFFFF",
-                    borderColor = "#F59E0B"
+                    borderColor = "#10B981"
+                )
+            )
+        )
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream))
+        assertTrue(NativeStreamBadgeDetector.isCastellano(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO (Verificado)" })
+        assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO" })
+    }
+
+    @Test
+    fun `castellano badge is preserved when sin latino badge is present`() {
+        val stream = createStream(
+            filename = "Movie.2024.Castellano.2160p.Remux.mkv"
+        ).copy(
+            badges = listOf(
+                com.nuvio.tv.domain.model.StreamBadge(
+                    name = "🚫 Sin Latino (ENG, FRA)",
+                    tagColor = "#4B5563",
+                    textColor = "#D1D5DB",
+                    borderColor = "#6B7280"
                 )
             )
         )
         assertFalse(NativeStreamBadgeDetector.isLatino(stream))
         assertTrue(NativeStreamBadgeDetector.isCastellano(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO (Verificado)" })
-        assertFalse(badges.any { it.name.contains("🇲🇽 LATINO") })
+        assertTrue(badges.any { it.name.startsWith("🚫 Sin Latino") })
+        assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO" })
     }
 
     private fun createStream(
