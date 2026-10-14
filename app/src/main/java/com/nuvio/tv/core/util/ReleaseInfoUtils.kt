@@ -6,11 +6,25 @@ import java.time.Clock
 import java.time.LocalDate
 
 private val YEAR_REGEX = Regex("""\b(19|20)\d{2}\b""")
+private val UNRELEASED_STATUSES = setOf("in production", "planned", "post production", "upcoming", "announced")
+private val UNRELEASED_KEYWORDS = listOf("coming soon", "upcoming", "announced", "in theaters", "in cinemas")
 
 fun MetaPreview.isUnreleased(
     today: LocalDate,
     clock: Clock = Clock.systemDefaultZone()
 ): Boolean {
+    status?.trim()?.lowercase()?.let { st ->
+        if (st in UNRELEASED_STATUSES) {
+            return true
+        }
+    }
+
+    releaseInfo?.trim()?.lowercase()?.let { info ->
+        if (UNRELEASED_KEYWORDS.any { info.contains(it) }) {
+            return true
+        }
+    }
+
     released?.trim()?.takeIf { it.isNotEmpty() }?.let { rawReleased ->
         isEpisodeReleaseAired(rawReleased, clock)?.let { hasAired ->
             return !hasAired

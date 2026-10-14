@@ -77,7 +77,28 @@ class ReleaseInfoUtilsTest {
         assertFalse(preview(released = null, releaseInfo = "2022").hasNoReleaseInfo())
     }
 
-    private fun preview(released: String?, releaseInfo: String? = null): MetaPreview = MetaPreview(
+    @Test
+    fun `unreleased production statuses are flagged as unreleased`() {
+        val postProd = preview(released = null, status = "Post Production")
+        assertTrue(postProd.isUnreleased(today = LocalDate.of(2026, 7, 28)))
+
+        val planned = preview(released = null, status = "Planned")
+        assertTrue(planned.isUnreleased(today = LocalDate.of(2026, 7, 28)))
+
+        val releasedMovie = preview(released = "2024-01-01", status = "Released")
+        assertFalse(releasedMovie.isUnreleased(today = LocalDate.of(2026, 7, 28)))
+    }
+
+    @Test
+    fun `coming soon keywords in releaseInfo are flagged as unreleased`() {
+        val comingSoon = preview(released = null, releaseInfo = "Coming Soon")
+        assertTrue(comingSoon.isUnreleased(today = LocalDate.of(2026, 7, 28)))
+
+        val inTheaters = preview(released = null, releaseInfo = "Now in Theaters")
+        assertTrue(inTheaters.isUnreleased(today = LocalDate.of(2026, 7, 28)))
+    }
+
+    private fun preview(released: String?, releaseInfo: String? = null, status: String? = null): MetaPreview = MetaPreview(
         id = "tt1",
         type = ContentType.MOVIE,
         name = "Title",
@@ -87,6 +108,7 @@ class ReleaseInfoUtilsTest {
         logo = null,
         description = null,
         releaseInfo = releaseInfo,
+        status = status,
         imdbRating = null,
         genres = emptyList(),
         released = released,

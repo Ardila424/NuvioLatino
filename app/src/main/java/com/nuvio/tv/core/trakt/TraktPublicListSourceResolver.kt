@@ -58,35 +58,76 @@ class TraktPublicListSourceResolver @Inject constructor(
         emit(NetworkResult.Loading)
         val result = runCatching {
             withContext(Dispatchers.IO) {
-                val type = source.mediaType.toTraktType()
-                val sortBy = TraktListSort.normalize(source.sortBy)
-                val sortHow = TraktSortHow.normalize(source.sortHow)
-                val response = publicRequest {
-                    traktApi.getPublicListItems(
-                        id = source.traktListId.toString(),
-                        type = type,
+                if (source.traktListId == TRAKT_RECOMMENDATIONS_LIST_ID) {
+                    val rawType = source.mediaType.toCollectionRawType()
+                    val (items, hasMore) = when (source.mediaType) {
+                        TmdbCollectionMediaType.MOVIE -> {
+                            val response = traktAuthService.executeAuthorizedRequest { authHeader ->
+                                traktApi.getRecommendedMovies(
+                                    authorization = authHeader,
+                                    page = page,
+                                    limit = PAGE_LIMIT,
+                                    ignoreCollected = true
+                                )
+                            } ?: error(string(R.string.collections_editor_error_load_trakt_list))
+                            if (!response.isSuccessful) error(errorMessageFor(response.code(), string(R.string.collections_editor_error_load_trakt_list)))
+                            val pageCount = response.headers()["X-Pagination-Page-Count"]?.toIntOrNull() ?: page
+                            val mapped = response.body().orEmpty().mapNotNull { it.toPreview() }
+                            mapped to (page < pageCount && mapped.isNotEmpty())
+                        }
+                        TmdbCollectionMediaType.TV -> {
+                            val response = traktAuthService.executeAuthorizedRequest { authHeader ->
+                                traktApi.getRecommendedShows(
+                                    authorization = authHeader,
+                                    page = page,
+                                    limit = PAGE_LIMIT,
+                                    ignoreCollected = true
+                                )
+                            } ?: error(string(R.string.collections_editor_error_load_trakt_list))
+                            if (!response.isSuccessful) error(errorMessageFor(response.code(), string(R.string.collections_editor_error_load_trakt_list)))
+                            val pageCount = response.headers()["X-Pagination-Page-Count"]?.toIntOrNull() ?: page
+                            val mapped = response.body().orEmpty().mapNotNull { it.toPreview() }
+                            mapped to (page < pageCount && mapped.isNotEmpty())
+                        }
+                    }
+                    val distinctItems = items.distinctBy { "${it.apiType}:${it.id}" }
+                    row(
+                        source = source,
                         page = page,
-                        limit = PAGE_LIMIT,
-                        sortBy = sortBy,
-                        sortHow = sortHow
+                        hasMore = hasMore,
+                        items = distinctItems
+                    )
+                } else {
+                    val type = source.mediaType.toTraktType()
+                    val sortBy = TraktListSort.normalize(source.sortBy)
+                    val sortHow = TraktSortHow.normalize(source.sortHow)
+                    val response = publicRequest {
+                        traktApi.getPublicListItems(
+                            id = source.traktListId.toString(),
+                            type = type,
+                            page = page,
+                            limit = PAGE_LIMIT,
+                            sortBy = sortBy,
+                            sortHow = sortHow
+                        )
+                    }
+                    val pageCountHeader = response.headers()["X-Pagination-Page-Count"]
+                    if (!response.isSuccessful) error(errorMessageFor(response.code(), string(R.string.collections_editor_error_load_trakt_list)))
+                    val rawItems = response.body().orEmpty()
+                    val items = rawItems
+                        .mapNotNull { it.toPreview(source.mediaType) }
+                        .distinctBy { "${it.apiType}:${it.id}" }
+                    val pageCount = pageCountHeader?.toIntOrNull() ?: page
+                    row(
+                        source = source.copy(
+                            sortBy = sortBy,
+                            sortHow = sortHow
+                        ),
+                        page = page,
+                        hasMore = page < pageCount && items.isNotEmpty(),
+                        items = items
                     )
                 }
-                val pageCountHeader = response.headers()["X-Pagination-Page-Count"]
-                if (!response.isSuccessful) error(errorMessageFor(response.code(), string(R.string.collections_editor_error_load_trakt_list)))
-                val rawItems = response.body().orEmpty()
-                val items = rawItems
-                    .mapNotNull { it.toPreview(source.mediaType) }
-                    .distinctBy { "${it.apiType}:${it.id}" }
-                val pageCount = pageCountHeader?.toIntOrNull() ?: page
-                row(
-                    source = source.copy(
-                        sortBy = sortBy,
-                        sortHow = sortHow
-                    ),
-                    page = page,
-                    hasMore = page < pageCount && items.isNotEmpty(),
-                    items = items
-                )
             }
         }
         result.fold(
@@ -96,6 +137,17 @@ class TraktPublicListSourceResolver @Inject constructor(
     }
 
     suspend fun listImportMetadata(input: String): TraktPublicListImportMetadata = withContext(Dispatchers.IO) {
+        val trimmed = input.trim()
+        if (trimmed.equals("recommendations", ignoreCase = true) ||
+            trimmed.equals("recommended", ignoreCase = true) ||
+            trimmed.equals("trakt recommendations", ignoreCase = true) ||
+            trimmed.equals("recomendaciones", ignoreCase = true)
+        ) {
+            return@withContext TraktPublicListImportMetadata(
+                title = "Trakt Recommendations",
+                traktListId = TRAKT_RECOMMENDATIONS_LIST_ID
+            )
+        }
         val idPath = parseTraktListPath(input) ?: error(string(R.string.collections_editor_error_trakt_list_id_or_url))
         val response = publicRequest { traktApi.getPublicList(id = idPath) }
         if (!response.isSuccessful) error(errorMessageFor(response.code(), string(R.string.collections_editor_error_trakt_list_not_found)))
@@ -310,14 +362,18 @@ class TraktPublicListSourceResolver @Inject constructor(
     }
 
     private fun TraktCollectionSource.key(): String {
-        return listOf(
-            "trakt",
-            "list",
-            traktListId.toString(),
-            mediaType.value,
-            sortBy.lowercase(Locale.US),
-            sortHow.lowercase(Locale.US)
-        ).joinToString("_")
+        return if (traktListId == TRAKT_RECOMMENDATIONS_LIST_ID) {
+            "trakt_recommendations_${mediaType.value}"
+        } else {
+            listOf(
+                "trakt",
+                "list",
+                traktListId.toString(),
+                mediaType.value,
+                sortBy.lowercase(Locale.US),
+                sortHow.lowercase(Locale.US)
+            ).joinToString("_")
+        }
     }
 
     private fun errorMessageFor(code: Int, fallback: String): String {
@@ -330,6 +386,7 @@ class TraktPublicListSourceResolver @Inject constructor(
     }
 
     companion object {
+        const val TRAKT_RECOMMENDATIONS_LIST_ID: Long = -1L
         const val PAGE_LIMIT = 50
     }
 }

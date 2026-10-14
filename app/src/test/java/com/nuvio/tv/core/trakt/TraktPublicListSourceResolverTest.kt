@@ -291,17 +291,62 @@ class TraktPublicListSourceResolverTest {
         assertEquals(0, result.data.items.size)
     }
 
+    @Test
+    fun `list import metadata resolves recommendations keyword`() = runTest {
+        val resolver = resolver(mockk(), authenticated = true)
+        val metadata = resolver.listImportMetadata("recommendations")
+        assertEquals("Trakt Recommendations", metadata.title)
+        assertEquals(TraktPublicListSourceResolver.TRAKT_RECOMMENDATIONS_LIST_ID, metadata.traktListId)
+    }
+
+    @Test
+    fun `resolve recommendations loads recommended movies with pagination`() = runTest {
+        val api = mockk<TraktApi>()
+        coEvery {
+            api.getRecommendedMovies(
+                authorization = any(),
+                extended = "full,images",
+                page = 1,
+                limit = 50,
+                ignoreCollected = true
+            )
+        } returns Response.success(
+            listOf(
+                TraktMovieDto(title = "Inception", year = 2010, ids = TraktIdsDto(trakt = 1, tmdb = 27205))
+            ),
+            headersOf("X-Pagination-Page-Count", "2")
+        )
+        val resolver = resolver(api, authenticated = true)
+
+        val result = resolver.resolve(
+            TraktCollectionSource(
+                title = "Recommended Movies",
+                traktListId = TraktPublicListSourceResolver.TRAKT_RECOMMENDATIONS_LIST_ID,
+                mediaType = TmdbCollectionMediaType.MOVIE
+            )
+        ).first { it is NetworkResult.Success } as NetworkResult.Success
+
+        assertEquals("Recommended Movies", result.data.catalogName)
+        assertEquals(1, result.data.items.size)
+        assertEquals("Inception", result.data.items[0].name)
+        assertTrue(result.data.hasMore)
+    }
+
     private fun resolver(api: TraktApi, authenticated: Boolean): TraktPublicListSourceResolver {
+        val authState = if (authenticated) {
+            TraktAuthState(
+                accessToken = "token",
+                refreshToken = "refresh",
+                createdAt = System.currentTimeMillis() / 1000L,
+                expiresIn = 3600
+            )
+        } else {
+            TraktAuthState()
+        }
         val authStore = mockk<TraktAuthDataStore> {
             every { isAuthenticated } returns flowOf(authenticated)
-            every { state } returns flowOf(
-                TraktAuthState(
-                    accessToken = "token",
-                    refreshToken = "refresh",
-                    createdAt = System.currentTimeMillis() / 1000L,
-                    expiresIn = 3600
-                )
-            )
+            every { state } returns flowOf(authState)
+            coEvery { getCurrentState() } returns authState
         }
         val authService = TraktAuthService(
             context = context,
