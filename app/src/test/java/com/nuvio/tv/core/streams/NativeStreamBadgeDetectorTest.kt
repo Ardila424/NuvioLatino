@@ -55,30 +55,48 @@ class NativeStreamBadgeDetectorTest {
     }
 
     @Test
-    fun `detects remux and probable latino on large 4k uhd remux`() {
+    fun `does not tag remux as latino when languages explicitly say english and russian`() {
         val stream = createStream(
-            filename = "Avengers.Endgame.2019.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.7.1.Atmos-FGT.mkv",
-            videoSize = 65L * 1024L * 1024L * 1024L // 65 GB
+            filename = "Spider-Man.Brand.New.Day.2026.2160p.IMAX.UHDRemux.HYBRID.HDR.DV-TheEqualizer.mkv",
+            videoSize = 86L * 1024L * 1024L * 1024L,
+            description = "Quality: BluRay REMUX\nLanguages: English, Russian | Subtitles: English, Russian"
         )
         assertTrue(NativeStreamBadgeDetector.isRemux(stream))
         assertTrue(NativeStreamBadgeDetector.is4K(stream))
         assertFalse(NativeStreamBadgeDetector.isLatino(stream))
-        assertTrue(NativeStreamBadgeDetector.isProbableUhdRemuxLatino(stream))
-        assertTrue(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
+        assertFalse(NativeStreamBadgeDetector.isCastellano(stream))
+        assertFalse(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
 
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("💎 REMUX", "🇲🇽 Latino en disco"), badges.map { it.name })
+        assertEquals(listOf("💎 REMUX"), badges.map { it.name })
     }
 
     @Test
-    fun `does not false positive probable latino on small web-dl`() {
+    fun `does not tag remux as latino when flags are english and czech`() {
         val stream = createStream(
-            filename = "Spider-Man.Brand.New.Day.2026.2160p.iT.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265.HUN.ENG-PTHD.mkv",
-            videoSize = 25L * 1024L * 1024L * 1024L
+            filename = "Project.Hail.Mary.2026.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR.mkv",
+            videoSize = 79L * 1024L * 1024L * 1024L,
+            description = "🌐 / 🇬🇧 / 🇨🇿"
         )
-        assertFalse(NativeStreamBadgeDetector.isRemux(stream))
-        assertFalse(NativeStreamBadgeDetector.isProbableUhdRemuxLatino(stream))
+        assertTrue(NativeStreamBadgeDetector.isRemux(stream))
+        assertFalse(NativeStreamBadgeDetector.isLatino(stream))
         assertFalse(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
+
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertEquals(listOf("💎 REMUX"), badges.map { it.name })
+    }
+
+    @Test
+    fun `detects latino from mexican flag in description`() {
+        val stream = createStream(
+            filename = "Project.Hail.Mary.2026.UHD.BluRay.2160p.REMUX.mkv",
+            videoSize = 79L * 1024L * 1024L * 1024L,
+            description = "🌐 / 🇬🇧 / 🇲🇽"
+        )
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream))
+        assertTrue(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertEquals(listOf("💎 REMUX", "🇲🇽 LATINO"), badges.map { it.name })
     }
 
     @Test
@@ -89,9 +107,38 @@ class NativeStreamBadgeDetectorTest {
         assertFalse(NativeStreamBadgeDetector.isLatino(stream))
     }
 
+    @Test
+    fun `sorting comparator orders latino first and size descending`() {
+        val smallLatino = createStream(
+            filename = "Movie.1080p.Dual-Latino.mkv",
+            videoSize = 10L * 1024L * 1024L * 1024L // 10 GB
+        )
+        val bigLatino = createStream(
+            filename = "Movie.2160p.UHD.Remux.Latino.mkv",
+            videoSize = 80L * 1024L * 1024L * 1024L // 80 GB
+        )
+        val bigCastellano = createStream(
+            filename = "Movie.2160p.Castellano.Remux.mkv",
+            videoSize = 75L * 1024L * 1024L * 1024L // 75 GB
+        )
+        val smallCastellano = createStream(
+            filename = "Movie.1080p.Castellano.mkv",
+            videoSize = 8L * 1024L * 1024L * 1024L // 8 GB
+        )
+
+        val streams = listOf(smallCastellano, smallLatino, bigCastellano, bigLatino)
+        val comparator = compareByDescending<Stream> { NativeStreamBadgeDetector.isLatino(it) }
+            .thenByDescending { NativeStreamBadgeDetector.isCastellano(it) }
+            .thenByDescending { com.nuvio.tv.core.debrid.StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+
+        val sorted = streams.sortedWith(comparator)
+        assertEquals(listOf(bigLatino, smallLatino, bigCastellano, smallCastellano), sorted)
+    }
+
     private fun createStream(
         filename: String,
-        videoSize: Long? = null
+        videoSize: Long? = null,
+        description: String? = null
     ): Stream {
         val raw = StreamClientResolveRaw(
             torrentName = filename,
@@ -126,7 +173,7 @@ class NativeStreamBadgeDetectorTest {
         return Stream(
             name = filename,
             title = filename,
-            description = filename,
+            description = description ?: filename,
             url = null,
             ytId = null,
             infoHash = null,

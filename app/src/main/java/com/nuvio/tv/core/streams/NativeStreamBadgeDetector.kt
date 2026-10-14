@@ -18,11 +18,11 @@ object NativeStreamBadgeDetector {
     )
 
     private val LATINO_REGEX = Regex(
-        """(?i)(^|[^a-z0-9])(latino|lat|es-419|dual[ ._-]?latino|audio[ ._-]?latino)([^a-z0-9]|$)"""
+        """(?i)(^|[^a-z0-9])(latino|latinos|latin|lat|es-419|es419|spa-lat|spalat|esp-lat|dual[ ._-]?latino|audio[ ._-]?latino|multi[ ._-]?lat)([^a-z0-9]|$)"""
     )
 
     private val CASTELLANO_REGEX = Regex(
-        """(?i)(^|[^a-z0-9])(castellano|español|espanol|spa)([^a-z0-9]|$)"""
+        """(?i)(^|[^a-z0-9])(castellano|español|espanol|spanish|spa)([^a-z0-9]|$)"""
     )
 
     private val MULTI_AUDIO_REGEX = Regex(
@@ -33,16 +33,12 @@ object NativeStreamBadgeDetector {
         """(?i)(^|[^a-z0-9])(2160p?|4k|uhd)([^a-z0-9]|$)"""
     )
 
-    // 25 GB minimum for a 4K UHD Blu-ray Remux to reliably contain disc tracks
-    private const val UHD_REMUX_MIN_SIZE_BYTES = 25L * 1024L * 1024L * 1024L
-
     fun detectBadges(stream: Stream): List<StreamBadge> {
         val badges = mutableListOf<StreamBadge>()
 
         val remux = isRemux(stream)
         val latino = isLatino(stream)
         val castellano = isCastellano(stream)
-        val probableLatino = if (!latino && !castellano) isProbableUhdRemuxLatino(stream) else false
         val multi = isMulti(stream)
 
         if (remux) {
@@ -61,13 +57,6 @@ object NativeStreamBadgeDetector {
                 textColor = "#FFFFFF",
                 borderColor = "#10B981"
             )
-        } else if (probableLatino) {
-            badges += StreamBadge(
-                name = "🇲🇽 Latino en disco",
-                tagColor = "#0F766E",
-                textColor = "#FFFFFF",
-                borderColor = "#14B8A6"
-            )
         }
 
         if (castellano) {
@@ -79,7 +68,7 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (multi && !latino && !castellano && !probableLatino) {
+        if (multi && !latino && !castellano) {
             badges += StreamBadge(
                 name = "🌐 MULTI",
                 tagColor = "#1D4ED8",
@@ -99,16 +88,28 @@ object NativeStreamBadgeDetector {
     }
 
     fun isLatino(stream: Stream): Boolean {
+        if (hasExplicitLanguagesWithoutSpanish(stream)) return false
+        if (hasExplicitFlagsWithoutSpanish(stream)) return false
+
+        val text = candidateTexts(stream).joinToString(" ")
+        if (text.contains("🇲🇽")) return true
+
         val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
-        if (parsedLangs.any { it.equals("la", ignoreCase = true) || it.equals("lat", ignoreCase = true) || it.equals("latino", ignoreCase = true) || it.equals("es-419", ignoreCase = true) }) {
+        if (parsedLangs.any { it.equals("la", ignoreCase = true) || it.equals("lat", ignoreCase = true) || it.equals("latino", ignoreCase = true) || it.equals("es-419", ignoreCase = true) || it.equals("latin", ignoreCase = true) }) {
             return true
         }
         return candidateTexts(stream).any { LATINO_REGEX.containsMatchIn(it) }
     }
 
     fun isCastellano(stream: Stream): Boolean {
+        if (hasExplicitLanguagesWithoutSpanish(stream)) return false
+        if (hasExplicitFlagsWithoutSpanish(stream)) return false
+
+        val text = candidateTexts(stream).joinToString(" ")
+        if (text.contains("🇪🇸")) return true
+
         val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
-        if (parsedLangs.any { it.equals("es", ignoreCase = true) || it.equals("spa", ignoreCase = true) || it.equals("spanish", ignoreCase = true) }) {
+        if (parsedLangs.any { it.equals("es", ignoreCase = true) || it.equals("spa", ignoreCase = true) || it.equals("spanish", ignoreCase = true) || it.equals("castellano", ignoreCase = true) }) {
             return true
         }
         return candidateTexts(stream).any { CASTELLANO_REGEX.containsMatchIn(it) }
@@ -129,14 +130,37 @@ object NativeStreamBadgeDetector {
         return candidateTexts(stream).any { UHD_4K_REGEX.containsMatchIn(it) }
     }
 
-    fun isProbableUhdRemuxLatino(stream: Stream): Boolean {
-        if (!isRemux(stream) || !is4K(stream)) return false
-        val size = StreamTextSizeParser.effectiveSizeBytes(stream) ?: return false
-        return size >= UHD_REMUX_MIN_SIZE_BYTES
+    fun isSpanishOrLatino(stream: Stream): Boolean {
+        return isLatino(stream) || isCastellano(stream)
     }
 
-    fun isSpanishOrLatino(stream: Stream): Boolean {
-        return isLatino(stream) || isCastellano(stream) || isProbableUhdRemuxLatino(stream)
+    private val EXPLICIT_LANGUAGES_REGEX = Regex(
+        """(?i)languages?:\s*([^|\n\r]+)"""
+    )
+
+    private val OTHER_AUDIO_FLAGS = listOf(
+        "🇬🇧", "🇺🇸", "🇨🇿", "🇷🇺", "🇩🇪", "🇫🇷", "🇮🇹", "🇯🇵", "🇰🇷", "🇵🇹", "🇧🇷", "🇵🇱", "🇹🇷", "🇮🇳"
+    )
+
+    private fun hasExplicitLanguagesWithoutSpanish(stream: Stream): Boolean {
+        val desc = stream.description ?: return false
+        val match = EXPLICIT_LANGUAGES_REGEX.find(desc) ?: return false
+        val languagesText = match.groupValues[1].lowercase()
+        val hasSpanish = languagesText.contains("spanish") ||
+            languagesText.contains("latino") ||
+            languagesText.contains("latin") ||
+            languagesText.contains("español") ||
+            languagesText.contains("espanol") ||
+            languagesText.contains("castellano") ||
+            languagesText.contains("es-419") ||
+            languagesText.contains("spa")
+        return !hasSpanish
+    }
+
+    private fun hasExplicitFlagsWithoutSpanish(stream: Stream): Boolean {
+        val text = listOfNotNull(stream.description, stream.title, stream.name).joinToString(" ")
+        if (text.contains("🇲🇽") || text.contains("🇪🇸")) return false
+        return OTHER_AUDIO_FLAGS.any { text.contains(it) }
     }
 
     private fun candidateTexts(stream: Stream): List<String> {

@@ -24,6 +24,8 @@ import com.nuvio.tv.core.tracking.TrackingScrobbleCoordinator
 import com.nuvio.tv.core.tracking.TrackingScrobbleEvent
 import com.nuvio.tv.core.tracking.buildTrackingMediaReference
 import com.nuvio.tv.core.util.parseRuntimeMinutes
+import com.nuvio.tv.core.debrid.StreamTextSizeParser
+import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePresentation
 import com.nuvio.tv.core.streams.YouTubeStreamResolver
 import com.nuvio.tv.data.local.PlayerPreference
@@ -1220,11 +1222,21 @@ class StreamScreenViewModel @Inject constructor(
         } else {
             allStreams.filter { it.addonName == addonFilter }
         }
+        val comparator = compareByDescending<Stream> { NativeStreamBadgeDetector.isLatino(it) }
+            .thenByDescending { NativeStreamBadgeDetector.isCastellano(it) }
+            .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+
         return when (quickFilter) {
             StreamQuickFilter.ALL -> byAddon
-            StreamQuickFilter.REMUX -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.isRemux(it) }
-            StreamQuickFilter.SPANISH -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.isSpanishOrLatino(it) }
-            StreamQuickFilter.UHD_4K -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.is4K(it) }
+            StreamQuickFilter.REMUX -> byAddon
+                .filter { NativeStreamBadgeDetector.isRemux(it) }
+                .sortedWith(comparator)
+            StreamQuickFilter.SPANISH -> byAddon
+                .filter { NativeStreamBadgeDetector.isSpanishOrLatino(it) }
+                .sortedWith(comparator)
+            StreamQuickFilter.UHD_4K -> byAddon
+                .filter { NativeStreamBadgeDetector.is4K(it) }
+                .sortedWith(comparator)
         }
     }
 
