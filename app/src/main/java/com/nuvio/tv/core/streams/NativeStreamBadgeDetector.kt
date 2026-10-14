@@ -33,13 +33,16 @@ object NativeStreamBadgeDetector {
         """(?i)(^|[^a-z0-9])(2160p?|4k|uhd)([^a-z0-9]|$)"""
     )
 
-    fun detectBadges(stream: Stream): List<StreamBadge> {
+    fun detectBadges(stream: Stream, latinTitles: List<String> = emptyList()): List<StreamBadge> {
         val badges = mutableListOf<StreamBadge>()
 
         val remux = isRemux(stream)
-        val latino = isLatino(stream)
+        val latino = isLatino(stream, latinTitles)
         val castellano = isCastellano(stream)
         val multi = isMulti(stream)
+
+        val hasVerifiedLatino = stream.badges.any { it.name.contains("LATINO (Verificado)") }
+        val hasNoLatino = stream.badges.any { it.name.startsWith("🚫 Sin Latino") }
 
         if (remux) {
             badges += StreamBadge(
@@ -50,7 +53,18 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (latino) {
+        if (hasVerifiedLatino) {
+            badges += StreamBadge(
+                name = "🇲🇽 LATINO (Verificado)",
+                tagColor = "#059669",
+                textColor = "#FFFFFF",
+                borderColor = "#10B981"
+            )
+        } else if (hasNoLatino) {
+            stream.badges.firstOrNull { it.name.startsWith("🚫 Sin Latino") }?.let {
+                badges += it
+            }
+        } else if (latino) {
             badges += StreamBadge(
                 name = "🇲🇽 LATINO",
                 tagColor = "#059669",
@@ -68,7 +82,7 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (multi && !latino && !castellano) {
+        if (multi && !latino && !castellano && !hasVerifiedLatino) {
             badges += StreamBadge(
                 name = "🌐 MULTI",
                 tagColor = "#1D4ED8",
@@ -87,12 +101,16 @@ object NativeStreamBadgeDetector {
         return candidateTexts(stream).any { REMUX_REGEX.containsMatchIn(it) }
     }
 
-    fun isLatino(stream: Stream): Boolean {
+    fun isLatino(stream: Stream, latinTitles: List<String> = emptyList()): Boolean {
+        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
+        if (stream.badges.any { it.name.contains("LATINO (Verificado)") }) return true
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 
         val text = candidateTexts(stream).joinToString(" ")
         if (text.contains("🇲🇽")) return true
+
+        if (matchesLatinTitle(text, latinTitles)) return true
 
         val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
         if (parsedLangs.any { it.equals("la", ignoreCase = true) || it.equals("lat", ignoreCase = true) || it.equals("latino", ignoreCase = true) || it.equals("es-419", ignoreCase = true) || it.equals("latin", ignoreCase = true) }) {
@@ -130,9 +148,21 @@ object NativeStreamBadgeDetector {
         return candidateTexts(stream).any { UHD_4K_REGEX.containsMatchIn(it) }
     }
 
-    fun isSpanishOrLatino(stream: Stream): Boolean {
-        return isLatino(stream) || isCastellano(stream)
+    fun isSpanishOrLatino(stream: Stream, latinTitles: List<String> = emptyList()): Boolean {
+        return isLatino(stream, latinTitles) || isCastellano(stream)
     }
+
+    private fun matchesLatinTitle(text: String, latinTitles: List<String>): Boolean {
+        if (latinTitles.isEmpty()) return false
+        val normalizedText = normalizeForMatching(text)
+        return latinTitles.any { title ->
+            val normalizedTitle = normalizeForMatching(title)
+            normalizedTitle.length >= 4 && normalizedText.contains(normalizedTitle)
+        }
+    }
+
+    private fun normalizeForMatching(s: String): String =
+        s.lowercase().replace(Regex("[^a-z0-9]"), " ").replace(Regex("\\s+"), " ").trim()
 
     private val EXPLICIT_LANGUAGES_REGEX = Regex(
         """(?i)languages?:\s*([^|\n\r]+)"""

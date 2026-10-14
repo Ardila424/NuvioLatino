@@ -453,6 +453,7 @@ fun StreamScreen(
                     hasBadgeRules = streamBadgeSettings.rules.hasImport,
                     onAddonFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnAddonFilterSelected(it)) },
                     onQuickFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnQuickFilterSelected(it)) },
+                    onStreamFocused = { viewModel.onEvent(StreamScreenEvent.OnStreamFocused(it)) },
                     onRefresh = { viewModel.onEvent(StreamScreenEvent.OnRefresh) },
                     onStreamSelected = { stream ->
                         val currentIndex = uiState.filteredStreams.indexOfFirst {
@@ -745,6 +746,7 @@ private fun RightStreamSection(
     shouldRestoreFocusedStream: Boolean,
     onRestoreFocusedStreamHandled: () -> Unit,
     onRetry: () -> Unit,
+    onStreamFocused: (Stream) -> Unit = {},
     onExpandStreams: () -> Unit = {},
     hazeState: HazeState?,
     modifier: Modifier = Modifier
@@ -962,6 +964,7 @@ private fun RightStreamSection(
                                 userMovedFromFirstResult = true
                             },
                             onFocusChanged = { listHasFocus = it },
+                            onStreamFocused = onStreamFocused,
                             onExpandStreams = onExpandStreams
                         )
                     }
@@ -1080,6 +1083,7 @@ private fun StreamsList(
     onRequestQuickFilterFocus: (() -> Unit)? = null,
     onUserNavigatedFromFirstResult: () -> Unit = {},
     onFocusChanged: (Boolean) -> Unit = {},
+    onStreamFocused: (Stream) -> Unit = {},
     onExpandStreams: () -> Unit = {}
 ) {
     val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
@@ -1233,6 +1237,7 @@ private fun StreamsList(
                     onFocusChanged = { focused ->
                         if (focused) {
                             focusedStreamKey = streamKeys.getOrNull(index)
+                            onStreamFocused(stream)
                         }
                         if (index == 0) {
                             firstCardHasFocus = focused

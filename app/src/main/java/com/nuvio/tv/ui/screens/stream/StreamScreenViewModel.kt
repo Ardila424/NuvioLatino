@@ -24,6 +24,10 @@ import com.nuvio.tv.core.tracking.TrackingScrobbleCoordinator
 import com.nuvio.tv.core.tracking.TrackingScrobbleEvent
 import com.nuvio.tv.core.tracking.buildTrackingMediaReference
 import com.nuvio.tv.core.util.parseRuntimeMinutes
+import com.nuvio.tv.core.streams.StreamAudioProbeResult
+import com.nuvio.tv.core.streams.StreamAudioProbeService
+import com.nuvio.tv.core.tmdb.TmdbService
+import java.util.concurrent.ConcurrentHashMap
 import com.nuvio.tv.core.debrid.StreamTextSizeParser
 import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePresentation
@@ -42,6 +46,7 @@ import com.nuvio.tv.data.mediaserver.serverPlaybackMessageRes
 import com.nuvio.tv.domain.model.AddonStreams
 import com.nuvio.tv.domain.model.Meta
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.domain.model.Video
 import com.nuvio.tv.domain.model.WatchProgress
 import com.nuvio.tv.domain.model.StreamDebridCacheState
@@ -102,6 +107,8 @@ class StreamScreenViewModel @Inject constructor(
     private val torrentService: TorrentService,
     private val serverStreams: ServerStreams,
     private val serverPlayback: ServerPlayback,
+    private val streamAudioProbeService: StreamAudioProbeService,
+    private val tmdbService: TmdbService,
     profileManager: com.nuvio.tv.core.profile.ProfileManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -120,6 +127,9 @@ class StreamScreenViewModel @Inject constructor(
     private var streamBadgePresentationRequestId = 0L
     private var badgedAddonNames: Set<String> = emptySet()
     private var playbackMetaVideos: List<Video>? = null
+    private var streamFocusProbeJob: Job? = null
+    private val probedStreamKeys = ConcurrentHashMap.newKeySet<String>()
+    private var latinAlternativeTitles: List<String> = emptyList()
 
     private val embeddedStreamGroupName: String by lazy {
         context.getString(R.string.stream_embedded_group)
@@ -205,7 +215,7 @@ class StreamScreenViewModel @Inject constructor(
                 for (chunk in chunks) {
                     ensureActive()
                     val chunkGroup = AddonStreams(addonName = "", addonLogo = null, streams = chunk)
-                    val badgedChunk = streamBadgePresentation.apply(listOf(chunkGroup))
+                    val badgedChunk = streamBadgePresentation.apply(listOf(chunkGroup), latinTitles = latinAlternativeTitles)
                         .firstOrNull()?.streams ?: chunk
                     ensureActive()
                     val badgedByKey = badgedChunk.associateBy { it.badgeMergeKey() }
@@ -241,6 +251,103 @@ class StreamScreenViewModel @Inject constructor(
                 val currentAddons = _uiState.value.addonStreams
                 pending = currentAddons.filter { it.addonName !in badgedAddonNames }
             }
+        }
+    }
+
+    private fun refreshBadgesWithLatinTitles() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val currentAddons = _uiState.value.addonStreams
+            if (currentAddons.isEmpty()) return@launch
+            val badgedAddons = streamBadgePresentation.apply(currentAddons, latinTitles = latinAlternativeTitles)
+            val updatedAllStreams = badgedAddons.flatMap { it.streams }
+            updateUiStateIfChanged { state ->
+                val fullFiltered = computeFilteredStreams(
+                    updatedAllStreams,
+                    state.selectedAddonFilter,
+                    state.selectedQuickFilter
+                )
+                streamFilterFullList = fullFiltered
+                val pageEnd = state.filteredStreams.size
+                    .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(fullFiltered.size))
+                    .coerceAtMost(fullFiltered.size)
+                state.copy(
+                    addonStreams = badgedAddons,
+                    allStreams = updatedAllStreams,
+                    filteredStreams = if (pageEnd >= fullFiltered.size) fullFiltered
+                        else fullFiltered.subList(0, pageEnd)
+                )
+            }
+        }
+    }
+
+    private fun onStreamFocused(stream: Stream) {
+        streamFocusProbeJob?.cancel()
+        if (!NativeStreamBadgeDetector.isRemux(stream)) return
+        val key = stream.badgeMergeKey()
+        if (probedStreamKeys.contains(key)) return
+
+        streamFocusProbeJob = viewModelScope.launch {
+            delay(5000L)
+            ensureActive()
+            val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)
+            if (result is StreamAudioProbeResult.Success) {
+                probedStreamKeys.add(key)
+                applyProbedStreamResult(stream, result)
+            }
+        }
+    }
+
+    private fun applyProbedStreamResult(stream: Stream, result: StreamAudioProbeResult.Success) {
+        val targetKey = stream.badgeMergeKey()
+        val newBadge = if (result.hasLatinoOrSpanish) {
+            StreamBadge(
+                name = "🇲🇽 LATINO (Verificado)",
+                tagColor = "#059669",
+                textColor = "#FFFFFF",
+                borderColor = "#10B981"
+            )
+        } else {
+            val langsSummary = result.detectedLanguages.take(3).joinToString(", ") { it.uppercase() }
+            val label = if (langsSummary.isNotBlank()) "🚫 Sin Latino ($langsSummary)" else "🚫 Sin Latino"
+            StreamBadge(
+                name = label,
+                tagColor = "#4B5563",
+                textColor = "#D1D5DB",
+                borderColor = "#6B7280"
+            )
+        }
+
+        updateUiStateIfChanged { state ->
+            val updatedAddonStreams = state.addonStreams.map { group ->
+                group.copy(
+                    streams = group.streams.map { s ->
+                        if (s.badgeMergeKey() == targetKey) {
+                            val filteredBadges = s.badges.filterNot {
+                                it.name.contains("LATINO", ignoreCase = true) || it.name.contains("Sin Latino", ignoreCase = true)
+                            }
+                            s.copy(badges = filteredBadges + newBadge)
+                        } else {
+                            s
+                        }
+                    }
+                )
+            }
+            val updatedAllStreams = updatedAddonStreams.flatMap { it.streams }
+            val fullFiltered = computeFilteredStreams(
+                updatedAllStreams,
+                state.selectedAddonFilter,
+                state.selectedQuickFilter
+            )
+            streamFilterFullList = fullFiltered
+            val pageEnd = state.filteredStreams.size
+                .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(fullFiltered.size))
+                .coerceAtMost(fullFiltered.size)
+            state.copy(
+                addonStreams = updatedAddonStreams,
+                allStreams = updatedAllStreams,
+                filteredStreams = if (pageEnd >= fullFiltered.size) fullFiltered
+                    else fullFiltered.subList(0, pageEnd)
+            )
         }
     }
 
@@ -284,6 +391,7 @@ class StreamScreenViewModel @Inject constructor(
             is StreamScreenEvent.OnStreamSelected -> {
                 cancelStreamsLoad()
             }
+            is StreamScreenEvent.OnStreamFocused -> onStreamFocused(event.stream)
             StreamScreenEvent.OnAutoPlayConsumed -> {
                 if (autoPlayHandledForSession &&
                     _uiState.value.autoPlayStream == null &&
@@ -340,6 +448,7 @@ class StreamScreenViewModel @Inject constructor(
         streamLoadJob = null
         streamBadgePresentationJob?.cancel()
         streamBadgePresentationRequestId += 1
+        streamFocusProbeJob?.cancel()
         updateUiStateIfChanged { it.copy(isLoading = false) }
     }
 
@@ -357,9 +466,22 @@ class StreamScreenViewModel @Inject constructor(
         streamLoadJob = null
         streamBadgePresentationJob?.cancel()
         streamBadgePresentationRequestId += 1
+        streamFocusProbeJob?.cancel()
         if (forceRefresh || _uiState.value.addonStreams.isEmpty()) {
             badgedAddonNames = emptySet()
         }
+
+        val cleanImdbId = (contentId ?: videoId).substringBefore(":")
+        if (cleanImdbId.startsWith("tt") && latinAlternativeTitles.isEmpty()) {
+            viewModelScope.launch {
+                val titles = tmdbService.getLatinAlternativeTitles(cleanImdbId, contentType)
+                if (titles.isNotEmpty()) {
+                    latinAlternativeTitles = titles
+                    refreshBadgesWithLatinTitles()
+                }
+            }
+        }
+
         sourceChipErrorDismissJob?.cancel()
         val newScope = kotlinx.coroutines.CoroutineScope(viewModelScope.coroutineContext + kotlinx.coroutines.SupervisorJob())
         streamLoadScope = newScope
@@ -1212,6 +1334,19 @@ class StreamScreenViewModel @Inject constructor(
         }
     }
 
+    private fun isStreamLatino(stream: Stream): Boolean {
+        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
+        if (stream.badges.any { it.name.contains("LATINO (Verificado)") }) return true
+        return NativeStreamBadgeDetector.isLatino(stream, latinAlternativeTitles)
+    }
+
+    private fun isStreamSpanishOrLatino(stream: Stream): Boolean {
+        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) {
+            return NativeStreamBadgeDetector.isCastellano(stream)
+        }
+        return isStreamLatino(stream) || NativeStreamBadgeDetector.isCastellano(stream)
+    }
+
     private fun computeFilteredStreams(
         allStreams: List<Stream>,
         addonFilter: String?,
@@ -1222,7 +1357,7 @@ class StreamScreenViewModel @Inject constructor(
         } else {
             allStreams.filter { it.addonName == addonFilter }
         }
-        val comparator = compareByDescending<Stream> { NativeStreamBadgeDetector.isLatino(it) }
+        val comparator = compareByDescending<Stream> { isStreamLatino(it) }
             .thenByDescending { NativeStreamBadgeDetector.isCastellano(it) }
             .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
 
@@ -1232,7 +1367,7 @@ class StreamScreenViewModel @Inject constructor(
                 .filter { NativeStreamBadgeDetector.isRemux(it) }
                 .sortedWith(comparator)
             StreamQuickFilter.SPANISH -> byAddon
-                .filter { NativeStreamBadgeDetector.isSpanishOrLatino(it) }
+                .filter { isStreamSpanishOrLatino(it) }
                 .sortedWith(comparator)
             StreamQuickFilter.UHD_4K -> byAddon
                 .filter { NativeStreamBadgeDetector.is4K(it) }
@@ -1574,6 +1709,7 @@ class StreamScreenViewModel @Inject constructor(
             isTorrentStreamStarted = false
         }
         externalOverlayHideJob?.cancel()
+        streamFocusProbeJob?.cancel()
         streamLoadScope?.cancel()
         streamLoadScope = null
         streamLoadJob = null
@@ -2008,21 +2144,6 @@ class StreamScreenViewModel @Inject constructor(
         }
     }
 
-}
-
-private fun Stream.badgeMergeKey(): String {
-    infoHash?.lowercase()?.let { hash -> return "$addonName|$hash:${fileIdx ?: ""}" }
-    // Use the playable URL as primary key - but for streams without a playable URL
-    // (e.g. statistic/informational entries that only have externalUrl), fall back
-    // to name+title+description to avoid all such streams collapsing to one key.
-    val playableUrl = url ?: clientResolve?.let { resolve ->
-        resolve.stream?.raw?.filename ?: resolve.infoHash
-    }
-    if (playableUrl != null) {
-        val nameSuffix = name?.takeIf { it.isNotBlank() }?.let { "|$it" } ?: ""
-        return "$addonName|$playableUrl$nameSuffix"
-    }
-    return "$addonName|${name}:${title}:${description?.hashCode() ?: 0}"
 }
 
 data class StreamPlaybackInfo(

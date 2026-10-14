@@ -306,6 +306,56 @@ class TmdbService @Inject constructor(
                 )
             }.getOrNull()
         }
+
+    private val latinTitlesCache = ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * Fetches official Latin American Spanish localized title and alternative titles from TMDB.
+     */
+    suspend fun getLatinAlternativeTitles(imdbId: String, mediaType: String): List<String> =
+        withContext(Dispatchers.IO) {
+            if (!imdbId.startsWith("tt")) return@withContext emptyList()
+            val normalizedType = normalizeMediaType(mediaType)
+            val cacheKey = "$imdbId:$normalizedType"
+            latinTitlesCache[cacheKey]?.let { return@withContext it }
+
+            val tmdbId = imdbToTmdb(imdbId, normalizedType) ?: return@withContext emptyList()
+            val titles = mutableSetOf<String>()
+
+            runCatching {
+                val isMovie = normalizedType == "movie"
+                // 1. Localized title for Latin America (es-MX)
+                val detailsResp = if (isMovie) {
+                    tmdbApi.getMovieDetails(tmdbId, TMDB_API_KEY, language = "es-MX")
+                } else {
+                    tmdbApi.getTvDetails(tmdbId, TMDB_API_KEY, language = "es-MX")
+                }
+                detailsResp.body()?.let { body ->
+                    val localized = if (isMovie) body.title else body.name
+                    if (!localized.isNullOrBlank()) {
+                        titles.add(localized.trim())
+                    }
+                }
+
+                // 2. Alternative titles from Latin American countries
+                val altResp = if (isMovie) {
+                    tmdbApi.getMovieAlternativeTitles(tmdbId, TMDB_API_KEY)
+                } else {
+                    tmdbApi.getTvAlternativeTitles(tmdbId, TMDB_API_KEY)
+                }
+                val latinCountryCodes = setOf("MX", "AR", "CO", "CL", "PE", "VE", "EC", "GT", "UY", "BO", "PY", "CR", "PA", "DO")
+                val altList = if (isMovie) altResp.body()?.movieTitles else altResp.body()?.tvTitles
+                altList.orEmpty().forEach { alt ->
+                    if (alt.countryCode in latinCountryCodes && !alt.title.isNullOrBlank()) {
+                        titles.add(alt.title.trim())
+                    }
+                }
+            }
+
+            val result = titles.toList()
+            latinTitlesCache[cacheKey] = result
+            result
+        }
 }
 
 data class TmdbImages(val backdropUrl: String?, val posterUrl: String?, val runtimeMinutes: Int? = null)

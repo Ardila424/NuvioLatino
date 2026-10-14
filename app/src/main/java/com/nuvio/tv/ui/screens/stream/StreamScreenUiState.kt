@@ -53,6 +53,7 @@ sealed class StreamScreenEvent {
     data class OnAddonFilterSelected(val addonName: String?) : StreamScreenEvent()
     data class OnQuickFilterSelected(val filter: StreamQuickFilter) : StreamScreenEvent()
     data class OnStreamSelected(val stream: Stream) : StreamScreenEvent()
+    data class OnStreamFocused(val stream: Stream) : StreamScreenEvent()
     data object OnAutoPlayConsumed : StreamScreenEvent()
     data object OnRefresh : StreamScreenEvent()
     data object OnRetry : StreamScreenEvent()

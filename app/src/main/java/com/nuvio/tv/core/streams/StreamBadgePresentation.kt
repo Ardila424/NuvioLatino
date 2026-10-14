@@ -19,19 +19,19 @@ class StreamBadgePresentation @Inject constructor(
 
     private val badgeInstancePool = AtomicReference<HashMap<String, StreamBadge>>(HashMap(64))
 
-    suspend fun apply(groups: List<AddonStreams>): List<AddonStreams> {
+    suspend fun apply(groups: List<AddonStreams>, latinTitles: List<String> = emptyList()): List<AddonStreams> {
         return withContext(Dispatchers.Default) {
-            apply(groups, dataStore.settings.first().rules)
+            apply(groups, dataStore.settings.first().rules, latinTitles)
         }
     }
 
-    fun apply(groups: List<AddonStreams>, rules: StreamBadgeRules): List<AddonStreams> {
+    fun apply(groups: List<AddonStreams>, rules: StreamBadgeRules, latinTitles: List<String> = emptyList()): List<AddonStreams> {
         val filters = getBadgeFilters(rules)
         val pool = badgeInstancePool.get()
         return groups.map { group ->
             group.copy(
                 streams = group.streams.map { stream ->
-                    val nativeBadges = NativeStreamBadgeDetector.detectBadges(stream)
+                    val nativeBadges = NativeStreamBadgeDetector.detectBadges(stream, latinTitles)
                     val matchedBadges = if (filters.isNotEmpty()) {
                         StreamBadgeMatcher.matchedBadgesPooled(stream, filters, pool)
                     } else {
@@ -70,18 +70,21 @@ class StreamBadgePresentation @Inject constructor(
         matched: List<StreamBadge>,
         pool: HashMap<String, StreamBadge>
     ): List<StreamBadge> {
-        // Fast path: no existing badges, just return matched (already pooled).
-        if (existing.isEmpty()) return matched
+        val all = existing + matched
+        val hasVerifiedLatino = all.any { it.name.contains("LATINO (Verificado)") }
+        val hasNoLatino = all.any { it.name.startsWith("🚫 Sin Latino") }
 
         val capacity = existing.size + matched.size
         val merged = LinkedHashMap<String, StreamBadge>(capacity)
-        existing.forEach { badge ->
+        for (badge in all) {
+            if (hasNoLatino && badge.name.contains("LATINO", ignoreCase = true) && !badge.name.contains("Sin Latino", ignoreCase = true)) {
+                continue
+            }
+            if (hasVerifiedLatino && badge.name == "🇲🇽 LATINO") {
+                continue
+            }
             val key = badge.dedupeKey()
             if (key !in merged) merged[key] = pool.getOrPut(key) { badge }
-        }
-        matched.forEach { badge ->
-            val key = badge.dedupeKey()
-            if (key !in merged) merged[key] = badge // already pooled
         }
         return merged.values.toList()
     }

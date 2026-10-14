@@ -135,6 +135,57 @@ class NativeStreamBadgeDetectorTest {
         assertEquals(listOf(bigLatino, smallLatino, bigCastellano, smallCastellano), sorted)
     }
 
+    @Test
+    fun `detects latino from latin alternative titles`() {
+        val stream = createStream(
+            filename = "Spider-Man.Sin.Camino.A.Casa.2021.2160p.UHD.Remux.mkv"
+        )
+        val latinTitles = listOf("Sin camino a casa", "Spider-Man: Sin camino a casa")
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream, latinTitles))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream, latinTitles)
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
+    }
+
+    @Test
+    fun `verified latino badge renders LATINO (Verificado)`() {
+        val stream = createStream(
+            filename = "Movie.2024.2160p.Remux.mkv"
+        ).copy(
+            badges = listOf(
+                com.nuvio.tv.domain.model.StreamBadge(
+                    name = "🇲🇽 LATINO (Verificado)",
+                    tagColor = "#059669",
+                    textColor = "#FFFFFF",
+                    borderColor = "#10B981"
+                )
+            )
+        )
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO (Verificado)" })
+        assertFalse(badges.any { it.name == "🇲🇽 LATINO" }) // No duplicate plain badge
+    }
+
+    @Test
+    fun `sin latino badge suppresses latino detection and preserves Sin Latino badge`() {
+        val stream = createStream(
+            filename = "Movie.2024.Dual-Latino.2160p.Remux.mkv"
+        ).copy(
+            badges = listOf(
+                com.nuvio.tv.domain.model.StreamBadge(
+                    name = "🚫 Sin Latino (ENG, RUS)",
+                    tagColor = "#4B5563",
+                    textColor = "#D1D5DB",
+                    borderColor = "#6B7280"
+                )
+            )
+        )
+        assertFalse(NativeStreamBadgeDetector.isLatino(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertFalse(badges.any { it.name.contains("🇲🇽 LATINO") })
+        assertTrue(badges.any { it.name == "🚫 Sin Latino (ENG, RUS)" })
+    }
+
     private fun createStream(
         filename: String,
         videoSize: Long? = null,
