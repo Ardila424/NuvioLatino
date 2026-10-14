@@ -186,6 +186,47 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(badges.any { it.name == "🚫 Sin Latino (ENG, RUS)" })
     }
 
+    @Test
+    fun `verified latino badge suppresses castellano on MULTi remux`() {
+        val stream = createStream(
+            filename = "Project.Hail.Mary.2026.2160p.UHD.BluRay.Remux.DV.P7.HDR.MULTi.TrueHD.Atmos-BTM.mkv"
+        ).copy(
+            badges = listOf(
+                com.nuvio.tv.domain.model.StreamBadge(
+                    name = "🇲🇽 LATINO (Verificado)",
+                    tagColor = "#059669",
+                    textColor = "#FFFFFF",
+                    borderColor = "#10B981"
+                )
+            )
+        )
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream))
+        assertFalse(NativeStreamBadgeDetector.isCastellano(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertEquals(listOf("💎 REMUX", "🇲🇽 LATINO (Verificado)"), badges.map { it.name })
+    }
+
+    @Test
+    fun `verified castellano badge renders CASTELLANO (Verificado) and suppresses latino`() {
+        val stream = createStream(
+            filename = "Movie.2024.Dual-Latino.2160p.Remux.mkv"
+        ).copy(
+            badges = listOf(
+                com.nuvio.tv.domain.model.StreamBadge(
+                    name = "🇪🇸 CASTELLANO (Verificado)",
+                    tagColor = "#B45309",
+                    textColor = "#FFFFFF",
+                    borderColor = "#F59E0B"
+                )
+            )
+        )
+        assertFalse(NativeStreamBadgeDetector.isLatino(stream))
+        assertTrue(NativeStreamBadgeDetector.isCastellano(stream))
+        val badges = NativeStreamBadgeDetector.detectBadges(stream)
+        assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO (Verificado)" })
+        assertFalse(badges.any { it.name.contains("🇲🇽 LATINO") })
+    }
+
     private fun createStream(
         filename: String,
         videoSize: Long? = null,

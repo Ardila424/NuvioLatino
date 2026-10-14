@@ -299,17 +299,27 @@ class StreamScreenViewModel @Inject constructor(
 
     private fun applyProbedStreamResult(stream: Stream, result: StreamAudioProbeResult.Success) {
         val targetKey = stream.badgeMergeKey()
-        val newBadge = if (result.hasLatinoOrSpanish) {
-            StreamBadge(
+        val newBadges = mutableListOf<StreamBadge>()
+        if (result.hasLatino) {
+            newBadges += StreamBadge(
                 name = "🇲🇽 LATINO (Verificado)",
                 tagColor = "#059669",
                 textColor = "#FFFFFF",
                 borderColor = "#10B981"
             )
-        } else {
+        }
+        if (result.hasCastellano) {
+            newBadges += StreamBadge(
+                name = "🇪🇸 CASTELLANO (Verificado)",
+                tagColor = "#B45309",
+                textColor = "#FFFFFF",
+                borderColor = "#F59E0B"
+            )
+        }
+        if (!result.hasLatino && !result.hasCastellano && result.detectedLanguages.isNotEmpty()) {
             val langsSummary = result.detectedLanguages.take(3).joinToString(", ") { it.uppercase() }
             val label = if (langsSummary.isNotBlank()) "🚫 Sin Latino ($langsSummary)" else "🚫 Sin Latino"
-            StreamBadge(
+            newBadges += StreamBadge(
                 name = label,
                 tagColor = "#4B5563",
                 textColor = "#D1D5DB",
@@ -317,15 +327,20 @@ class StreamScreenViewModel @Inject constructor(
             )
         }
 
+        if (newBadges.isEmpty()) return
+
         updateUiStateIfChanged { state ->
             val updatedAddonStreams = state.addonStreams.map { group ->
                 group.copy(
                     streams = group.streams.map { s ->
                         if (s.badgeMergeKey() == targetKey) {
                             val filteredBadges = s.badges.filterNot {
-                                it.name.contains("LATINO", ignoreCase = true) || it.name.contains("Sin Latino", ignoreCase = true)
+                                it.name.contains("LATINO", ignoreCase = true) ||
+                                    it.name.contains("CASTELLANO", ignoreCase = true) ||
+                                    it.name.contains("Sin Latino", ignoreCase = true) ||
+                                    it.name == "🌐 MULTI"
                             }
-                            s.copy(badges = filteredBadges + newBadge)
+                            s.copy(badges = filteredBadges + newBadges)
                         } else {
                             s
                         }
@@ -633,7 +648,10 @@ class StreamScreenViewModel @Inject constructor(
                         group.copy(
                             streams = group.streams.map { stream ->
                                 val existing = existingBadgedStreams[stream.badgeMergeKey()]
-                                if (existing != null && stream.badges.isEmpty()) {
+                                val hasVerified = existing?.badges?.any {
+                                    it.name.contains("Verificado") || it.name.startsWith("🚫 Sin Latino")
+                                } ?: false
+                                if (existing != null && (hasVerified || stream.badges.isEmpty())) {
                                     stream.copy(badges = existing.badges)
                                 } else {
                                     stream
@@ -1337,13 +1355,14 @@ class StreamScreenViewModel @Inject constructor(
     private fun isStreamLatino(stream: Stream): Boolean {
         if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
         if (stream.badges.any { it.name.contains("LATINO (Verificado)") }) return true
+        if (stream.badges.any { it.name.contains("CASTELLANO (Verificado)") }) return false
         return NativeStreamBadgeDetector.isLatino(stream, latinAlternativeTitles)
     }
 
     private fun isStreamSpanishOrLatino(stream: Stream): Boolean {
-        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) {
-            return NativeStreamBadgeDetector.isCastellano(stream)
-        }
+        if (stream.badges.any { it.name.contains("LATINO (Verificado)") }) return true
+        if (stream.badges.any { it.name.contains("CASTELLANO (Verificado)") }) return true
+        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
         return isStreamLatino(stream) || NativeStreamBadgeDetector.isCastellano(stream)
     }
 
@@ -1358,7 +1377,7 @@ class StreamScreenViewModel @Inject constructor(
             allStreams.filter { it.addonName == addonFilter }
         }
         val comparator = compareByDescending<Stream> { isStreamLatino(it) }
-            .thenByDescending { NativeStreamBadgeDetector.isCastellano(it) }
+            .thenByDescending { isStreamSpanishOrLatino(it) }
             .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
 
         return when (quickFilter) {
