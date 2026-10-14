@@ -30,6 +30,7 @@ data class StreamScreenUiState(
     val addonStreams: List<AddonStreams> = emptyList(),
     val allStreams: List<Stream> = emptyList(),
     val selectedAddonFilter: String? = null, // null means "All"
+    val selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
     val filteredStreams: List<Stream> = emptyList(),
     val availableAddons: List<String> = emptyList(),
     val sourceChips: List<SourceChipItem> = emptyList(),
@@ -41,8 +42,16 @@ data class StreamScreenUiState(
     val isEpisode: Boolean get() = season != null && episode != null
 }
 
+enum class StreamQuickFilter {
+    ALL,
+    REMUX,
+    SPANISH,
+    UHD_4K
+}
+
 sealed class StreamScreenEvent {
     data class OnAddonFilterSelected(val addonName: String?) : StreamScreenEvent()
+    data class OnQuickFilterSelected(val filter: StreamQuickFilter) : StreamScreenEvent()
     data class OnStreamSelected(val stream: Stream) : StreamScreenEvent()
     data object OnAutoPlayConsumed : StreamScreenEvent()
     data object OnRefresh : StreamScreenEvent()

@@ -216,12 +216,11 @@ class StreamScreenViewModel @Inject constructor(
                             )
                         }
                         val updatedAllStreams = updatedAddonStreams.flatMap { it.streams }
-                        val currentFilter = state.selectedAddonFilter
-                        val fullFiltered = if (currentFilter == null) {
-                            updatedAllStreams
-                        } else {
-                            updatedAllStreams.filter { it.addonName == currentFilter }
-                        }
+                        val fullFiltered = computeFilteredStreams(
+                            updatedAllStreams,
+                            state.selectedAddonFilter,
+                            state.selectedQuickFilter
+                        )
                         streamFilterFullList = fullFiltered
                         val pageEnd = state.filteredStreams.size
                             .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(fullFiltered.size))
@@ -279,6 +278,7 @@ class StreamScreenViewModel @Inject constructor(
     fun onEvent(event: StreamScreenEvent) {
         when (event) {
             is StreamScreenEvent.OnAddonFilterSelected -> filterByAddon(event.addonName)
+            is StreamScreenEvent.OnQuickFilterSelected -> filterByQuickFilter(event.filter)
             is StreamScreenEvent.OnStreamSelected -> {
                 cancelStreamsLoad()
             }
@@ -310,6 +310,7 @@ class StreamScreenViewModel @Inject constructor(
                         isLoading = true,
                         error = null,
                         selectedAddonFilter = null,
+                        selectedQuickFilter = StreamQuickFilter.ALL,
                         filteredStreams = emptyList()
                     )
                 }
@@ -565,11 +566,8 @@ class StreamScreenViewModel @Inject constructor(
                 }
 
                 val currentFilter = _uiState.value.selectedAddonFilter
-                val fullFiltered = if (currentFilter == null) {
-                    allStreams
-                } else {
-                    allStreams.filter { it.addonName == currentFilter }
-                }
+                val currentQuickFilter = _uiState.value.selectedQuickFilter
+                val fullFiltered = computeFilteredStreams(allStreams, currentFilter, currentQuickFilter)
                 streamFilterFullList = fullFiltered
                 val currentPageSize = _uiState.value.filteredStreams.size
                 val isFirstLoad = currentPageSize == 0
@@ -673,12 +671,11 @@ class StreamScreenViewModel @Inject constructor(
                                 val updatedAllStreams = updatedGroups.flatMap { addonStreams ->
                                     addonStreams.streams
                                 }
-                                val currentFilter = state.selectedAddonFilter
-                                val fullFiltered = if (currentFilter == null) {
-                                    updatedAllStreams
-                                } else {
-                                    updatedAllStreams.filter { it.addonName == currentFilter }
-                                }
+                                val fullFiltered = computeFilteredStreams(
+                                    updatedAllStreams,
+                                    state.selectedAddonFilter,
+                                    state.selectedQuickFilter
+                                )
                                 streamFilterFullList = fullFiltered
                                 val pageEnd = state.filteredStreams.size
                                     .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(fullFiltered.size))
@@ -1177,11 +1174,7 @@ class StreamScreenViewModel @Inject constructor(
             if (state.selectedAddonFilter == addonName) {
                 return@updateUiStateIfChanged state
             }
-            val fullFiltered = if (addonName == null) {
-                state.allStreams
-            } else {
-                state.allStreams.filter { it.addonName == addonName }
-            }
+            val fullFiltered = computeFilteredStreams(state.allStreams, addonName, state.selectedQuickFilter)
             streamFilterFullList = fullFiltered
             val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
                 fullFiltered.subList(0, STREAM_FILTER_PAGE_SIZE)
@@ -1192,6 +1185,46 @@ class StreamScreenViewModel @Inject constructor(
                 selectedAddonFilter = addonName,
                 filteredStreams = paginatedStreams
             )
+        }
+    }
+
+    private fun filterByQuickFilter(quickFilter: StreamQuickFilter) {
+        streamFilterExpandJob?.cancel()
+        updateUiStateIfChanged { state ->
+            val nextFilter = if (state.selectedQuickFilter == quickFilter && quickFilter != StreamQuickFilter.ALL) {
+                StreamQuickFilter.ALL
+            } else {
+                quickFilter
+            }
+            val fullFiltered = computeFilteredStreams(state.allStreams, state.selectedAddonFilter, nextFilter)
+            streamFilterFullList = fullFiltered
+            val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
+                fullFiltered.subList(0, STREAM_FILTER_PAGE_SIZE)
+            } else {
+                fullFiltered
+            }
+            state.copy(
+                selectedQuickFilter = nextFilter,
+                filteredStreams = paginatedStreams
+            )
+        }
+    }
+
+    private fun computeFilteredStreams(
+        allStreams: List<Stream>,
+        addonFilter: String?,
+        quickFilter: StreamQuickFilter
+    ): List<Stream> {
+        val byAddon = if (addonFilter == null) {
+            allStreams
+        } else {
+            allStreams.filter { it.addonName == addonFilter }
+        }
+        return when (quickFilter) {
+            StreamQuickFilter.ALL -> byAddon
+            StreamQuickFilter.REMUX -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.isRemux(it) }
+            StreamQuickFilter.SPANISH -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.isSpanishOrLatino(it) }
+            StreamQuickFilter.UHD_4K -> byAddon.filter { com.nuvio.tv.core.streams.NativeStreamBadgeDetector.is4K(it) }
         }
     }
 

@@ -209,7 +209,11 @@ object DirectDebridStreamFilter {
         val audioChannels = streamAudioChannels(parsed?.channels.orEmpty(), searchText)
         val encode = streamEncode(parsed?.codec, searchText)
         val languages = parsed?.languages.orEmpty().mapNotNull { languageFor(it) }.ifEmpty {
-            DebridStreamLanguage.entries.filter { searchText.hasToken(it.code) }
+            buildList {
+                if (searchText.contains("latino") || searchText.hasToken("lat") || searchText.contains("es-419")) add(DebridStreamLanguage.LA)
+                if (searchText.contains("castellano") || searchText.contains("español") || searchText.contains("espanol") || searchText.hasToken("spa") || searchText.hasToken("es")) add(DebridStreamLanguage.ES)
+                addAll(DebridStreamLanguage.entries.filter { it != DebridStreamLanguage.LA && it != DebridStreamLanguage.ES && searchText.hasToken(it.code) })
+            }
         }
         val releaseGroup = parsed?.group?.takeIf { it.isNotBlank() } ?: releaseGroupFromText(searchText)
         return StreamFacts(
@@ -334,8 +338,12 @@ object DirectDebridStreamFilter {
 
     private fun languageFor(value: String): DebridStreamLanguage? {
         val normalized = value.lowercase()
-        return DebridStreamLanguage.entries.firstOrNull {
-            normalized == it.code || normalized == it.label.lowercase()
+        return when (normalized) {
+            "la", "lat", "latino", "es-419" -> DebridStreamLanguage.LA
+            "es", "spa", "spanish", "castellano" -> DebridStreamLanguage.ES
+            else -> DebridStreamLanguage.entries.firstOrNull {
+                normalized == it.code || normalized == it.label.lowercase()
+            }
         }
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.nuvio.tv.R
@@ -100,9 +101,9 @@ fun StreamBadgeChips(
     focused: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val imageBadges = remember(badges) { badges.filter { it.imageURL.isNotBlank() } }
+    val visibleBadges = remember(badges) { badges.filter { it.imageURL.isNotBlank() || it.name.isNotBlank() } }
     val sizeBytes = fileSizeBytes.takeIf { showFileSizeBadge }
-    if (imageBadges.isEmpty() && sizeBytes == null) return
+    if (visibleBadges.isEmpty() && sizeBytes == null) return
 
     val chipAlpha = if (animate) {
         val alpha = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -127,13 +128,47 @@ fun StreamBadgeChips(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
         ) {
-            imageBadges.forEach { badge ->
-                StreamImportedBadgeChip(badge = badge)
+            visibleBadges.forEach { badge ->
+                if (badge.imageURL.isNotBlank()) {
+                    StreamImportedBadgeChip(badge = badge)
+                } else {
+                    StreamTextBadgeChip(badge = badge)
+                }
             }
             if (sizeBytes != null) {
                 StreamFileSizeBadge(bytes = sizeBytes)
             }
         }
+    }
+}
+
+@Composable
+private fun StreamTextBadgeChip(badge: StreamBadge) {
+    val backgroundColor = remember(badge.tagColor) {
+        badge.tagColor.toBadgeColorOrNull() ?: Color(0xFF1E293B)
+    }
+    val outlineColor = remember(badge.borderColor, backgroundColor) {
+        badge.borderColor.toBadgeColorOrNull() ?: backgroundColor
+    }
+    val textColor = remember(badge.textColor) {
+        badge.textColor.toBadgeColorOrNull() ?: Color.White
+    }
+
+    Box(
+        modifier = Modifier
+            .height(20.dp)
+            .clip(BadgeChipShape)
+            .background(backgroundColor, BadgeChipShape)
+            .border(NuvioTheme.spacing.hairline, outlineColor, BadgeChipShape)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = badge.name,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = textColor,
+            maxLines = 1
+        )
     }
 }
 

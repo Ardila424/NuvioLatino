@@ -25,7 +25,9 @@ class DebridStreamFormatter @Inject constructor(
     ): Stream {
         if (!stream.isManagedDebridForFormatting()) return stream
         val matchedBadges = StreamBadgeMatcher.matchedBadges(stream, compiledBadgeFilters)
-        val values = buildValues(stream, settings, matchedBadges)
+        val nativeBadges = com.nuvio.tv.core.streams.NativeStreamBadgeDetector.detectBadges(stream)
+        val allBadges = (stream.badges + nativeBadges + matchedBadges).distinctBy { it.name }
+        val values = buildValues(stream, settings, allBadges)
         val formattedName = engine.render(settings.streamNameTemplate, values)
             .lineSequence()
             .joinToString(" ") { it.trim() }
@@ -41,7 +43,7 @@ class DebridStreamFormatter @Inject constructor(
         return stream.copy(
             name = formattedName.ifBlank { stream.name ?: DebridProviders.instantName(stream.clientResolve?.service) },
             description = formattedDescription.ifBlank { stream.description ?: stream.title },
-            badges = matchedBadges
+            badges = allBadges
         )
     }
 
@@ -193,7 +195,9 @@ class DebridStreamFormatter @Inject constructor(
             "ja", "jpn", "japanese" -> "🇯🇵"
             "ko", "kor", "korean" -> "🇰🇷"
             "fr", "fre", "fra", "french" -> "🇫🇷"
-            "es", "spa", "spanish" -> "🇪🇸"
+            "es", "spa", "spanish", "castellano" -> "🇪🇸"
+            "la", "lat", "latino", "es-419" -> "🇲🇽"
+            "pt", "por", "portuguese" -> "🇵🇹"
             "de", "ger", "deu", "german" -> "🇩🇪"
             "it", "ita", "italian" -> "🇮🇹"
             "multi" -> "Multi"

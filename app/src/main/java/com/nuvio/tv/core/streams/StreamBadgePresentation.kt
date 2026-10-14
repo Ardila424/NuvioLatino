@@ -27,16 +27,21 @@ class StreamBadgePresentation @Inject constructor(
 
     fun apply(groups: List<AddonStreams>, rules: StreamBadgeRules): List<AddonStreams> {
         val filters = getBadgeFilters(rules)
-        if (filters.isEmpty()) return groups
         val pool = badgeInstancePool.get()
         return groups.map { group ->
             group.copy(
                 streams = group.streams.map { stream ->
-                    val matchedBadges = StreamBadgeMatcher.matchedBadgesPooled(stream, filters, pool)
-                    if (matchedBadges.isEmpty()) {
+                    val nativeBadges = NativeStreamBadgeDetector.detectBadges(stream)
+                    val matchedBadges = if (filters.isNotEmpty()) {
+                        StreamBadgeMatcher.matchedBadgesPooled(stream, filters, pool)
+                    } else {
+                        emptyList()
+                    }
+                    val combinedBadges = nativeBadges + matchedBadges
+                    if (combinedBadges.isEmpty()) {
                         stream
                     } else {
-                        stream.copy(badges = mergeBadges(stream.badges, matchedBadges, pool))
+                        stream.copy(badges = mergeBadges(stream.badges, combinedBadges, pool))
                     }
                 }
             )

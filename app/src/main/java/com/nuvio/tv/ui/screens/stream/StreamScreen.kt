@@ -445,11 +445,14 @@ fun StreamScreen(
                     availableAddons = uiState.availableAddons,
                     sourceChips = uiState.sourceChips,
                     selectedAddonFilter = uiState.selectedAddonFilter,
+                    allStreams = uiState.allStreams,
+                    selectedQuickFilter = uiState.selectedQuickFilter,
                     showFileSizeBadges = streamBadgeSettings.showFileSizeBadges,
                     showAddonLogo = streamBadgeSettings.showAddonLogo,
                     badgePlacement = streamBadgeSettings.badgePlacement,
                     hasBadgeRules = streamBadgeSettings.rules.hasImport,
                     onAddonFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnAddonFilterSelected(it)) },
+                    onQuickFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnQuickFilterSelected(it)) },
                     onRefresh = { viewModel.onEvent(StreamScreenEvent.OnRefresh) },
                     onStreamSelected = { stream ->
                         val currentIndex = uiState.filteredStreams.indexOfFirst {
@@ -728,6 +731,9 @@ private fun RightStreamSection(
     availableAddons: List<String>,
     sourceChips: List<SourceChipItem>,
     selectedAddonFilter: String?,
+    allStreams: List<Stream> = emptyList(),
+    selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
+    onQuickFilterSelected: (StreamQuickFilter) -> Unit = {},
     showFileSizeBadges: Boolean,
     showAddonLogo: Boolean,
     badgePlacement: StreamBadgePlacement,
@@ -772,6 +778,7 @@ private fun RightStreamSection(
             }
         }
     }
+    val quickFilterFocusRequesters = remember { List(4) { FocusRequester() } }
     fun onAddonFilterSelectedGuarded(addon: String?) {
         userMovedFromFirstResult = true
         onAddonFilterSelected(addon)
@@ -857,7 +864,30 @@ private fun RightStreamSection(
             }
         }
 
-        Spacer(modifier = Modifier.height(NuvioTheme.spacing.lg))
+        val activeStreamsForFilter = remember(allStreams, selectedAddonFilter) {
+            if (selectedAddonFilter == null) allStreams
+            else allStreams.filter { it.addonName == selectedAddonFilter }
+        }
+
+        if (activeStreamsForFilter.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(NuvioTheme.spacing.xs))
+            com.nuvio.tv.ui.components.QuickFilterChips(
+                allStreams = activeStreamsForFilter,
+                selectedFilter = selectedQuickFilter,
+                onFilterSelected = onQuickFilterSelected,
+                externalFocusRequesters = quickFilterFocusRequesters,
+                onUpKey = {
+                    val idx = if (selectedAddonFilter == null) 1
+                              else orderedAddonNames.indexOf(selectedAddonFilter) + 2
+                    requestChipFocus(idx)
+                },
+                onDownKey = {
+                    firstStreamFocusRequestId += 1
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NuvioTheme.spacing.md))
 
         androidx.compose.animation.AnimatedVisibility(
             visible = enter,
@@ -923,6 +953,11 @@ private fun RightStreamSection(
                             onAddonFilterSelected = { onAddonFilterSelectedGuarded(it) },
                             orderedAddonNames = orderedAddonNames,
                             onRequestChipFocus = { requestChipFocus(it) },
+                            selectedQuickFilter = selectedQuickFilter,
+                            onRequestQuickFilterFocus = if (activeStreamsForFilter.isNotEmpty()) {{
+                                val quickIdx = selectedQuickFilter.ordinal.coerceIn(0, 3)
+                                quickFilterFocusRequesters.getOrNull(quickIdx)?.requestFocus()
+                            }} else null,
                             onUserNavigatedFromFirstResult = {
                                 userMovedFromFirstResult = true
                             },
@@ -1041,6 +1076,8 @@ private fun StreamsList(
     onAddonFilterSelected: (String?) -> Unit = {},
     orderedAddonNames: List<String> = emptyList(),
     onRequestChipFocus: (Int) -> Unit = {},
+    selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
+    onRequestQuickFilterFocus: (() -> Unit)? = null,
     onUserNavigatedFromFirstResult: () -> Unit = {},
     onFocusChanged: (Boolean) -> Unit = {},
     onExpandStreams: () -> Unit = {}
@@ -1089,8 +1126,8 @@ private fun StreamsList(
         }
     }
 
-    // Reset scroll position to the top when the addon filter changes (#2538).
-    LaunchedEffect(selectedAddonFilter) {
+    // Reset scroll position to the top when the addon filter or quick filter changes
+    LaunchedEffect(selectedAddonFilter, selectedQuickFilter) {
         streamListState.scrollToItem(0)
     }
 
@@ -1202,9 +1239,13 @@ private fun StreamsList(
                         }
                     },
                     onUpKey = if (index == 0) {{
-                        val idx = if (selectedAddonFilter == null) 1
-                                  else orderedAddonNames.indexOf(selectedAddonFilter) + 2
-                        onRequestChipFocus(idx)
+                        if (onRequestQuickFilterFocus != null) {
+                            onRequestQuickFilterFocus()
+                        } else {
+                            val idx = if (selectedAddonFilter == null) 1
+                                      else orderedAddonNames.indexOf(selectedAddonFilter) + 2
+                            onRequestChipFocus(idx)
+                        }
                     }} else null
                 )
             }

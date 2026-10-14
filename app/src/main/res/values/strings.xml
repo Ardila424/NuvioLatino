@@ -1756,6 +1756,10 @@
     <string name="catalog_order_disable">Disable</string>
 
 
+    <string name="stream_filter_remux">REMUX</string>
+    <string name="stream_filter_spanish">Latino / ES</string>
+    <string name="stream_filter_4k">4K UHD</string>
+
     <string name="stream_retry">Retry</string>
     <string name="stream_no_streams">No streams found</string>
     <string name="stream_no_streams_hint">Try installing more addons to find streams</string>
