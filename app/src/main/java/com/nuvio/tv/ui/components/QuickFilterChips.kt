@@ -112,7 +112,12 @@ fun QuickFilterChips(
                     .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
                     .onFocusChanged {
                         isFocused = it.isFocused
-                        if (it.isFocused) focusedIndex = index
+                        if (it.isFocused) {
+                            focusedIndex = index
+                            if (selectedFilter != option.filter) {
+                                onFilterSelected(option.filter)
+                            }
+                        }
                     },
                 colors = FilterChipDefaults.colors(
                     containerColor = NuvioTheme.colors.BackgroundCard,
