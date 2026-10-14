@@ -54,6 +54,7 @@ internal object PlayerPlaybackNetworking {
             .eventListenerFactory(PlaybackConnectionEvents)
             .sslSocketFactory(sslContext.socketFactory, trustAllManager)
             .hostnameVerifier(playbackHostnameVerifier)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
@@ -78,6 +79,7 @@ internal object PlayerPlaybackNetworking {
             .dns(IPv4FirstDns())
             .socketFactory(PlaybackSocketFactory)
             .eventListenerFactory(PlaybackConnectionEvents)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
@@ -104,26 +106,17 @@ internal object PlayerPlaybackNetworking {
         if (useLongReadTimeout) {
             builder.readTimeout(LOOPBACK_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         }
-        if (defaultHeaders.any { it.key.equals("Authorization", ignoreCase = true) }) {
-            // OkHttp strips the Authorization header on cross-host redirects.
-            // WebDAV servers behind reverse proxies commonly redirect to a
-            // different host/port, causing auth to be lost. A network
-            // interceptor ensures the header is always present on every
-            // outgoing request — same behavior as mpv/curl.
-            val authValue = defaultHeaders.entries
-                .first { it.key.equals("Authorization", ignoreCase = true) }
-                .value
+        val proxyHeaders = defaultHeaders.filterKeys { key ->
+            !key.equals("Range", ignoreCase = true)
+        }
+        if (proxyHeaders.isNotEmpty()) {
             builder.addNetworkInterceptor { chain ->
                 val request = chain.request()
-                if (request.header("Authorization") == null) {
-                    chain.proceed(
-                        request.newBuilder()
-                            .header("Authorization", authValue)
-                            .build()
-                    )
-                } else {
-                    chain.proceed(request)
+                val next = request.newBuilder()
+                for ((key, value) in proxyHeaders) {
+                    next.header(key, value)
                 }
+                chain.proceed(next.build())
             }
         }
         return builder
@@ -136,10 +129,19 @@ internal object PlayerPlaybackNetworking {
         defaultHeaders: Map<String, String> = emptyMap(),
         useLongReadTimeout: Boolean = false
     ): DataSource.Factory {
-        val client = createHttpClient(defaultHeaders, useLongReadTimeout)
+        val requestHeaders = defaultHeaders.mapNotNull { (rawKey, rawValue) ->
+            val key = rawKey.trim()
+            val value = rawValue.trim()
+            if (key.isEmpty() || value.isEmpty() || key.equals("Range", ignoreCase = true)) {
+                null
+            } else {
+                key to value
+            }
+        }.toMap()
+        val client = createHttpClient(requestHeaders, useLongReadTimeout)
         val httpFactory = OkHttpDataSource.Factory(client).apply {
-            setDefaultRequestProperties(defaultHeaders)
-            if (defaultHeaders.none { it.key.equals("User-Agent", ignoreCase = true) }) {
+            setDefaultRequestProperties(requestHeaders)
+            if (requestHeaders.none { it.key.equals("User-Agent", ignoreCase = true) }) {
                 setUserAgent(PlayerMediaSourceFactory.DEFAULT_USER_AGENT)
             }
         }
