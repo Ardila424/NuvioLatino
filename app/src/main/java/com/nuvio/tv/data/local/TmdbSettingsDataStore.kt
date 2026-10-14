@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.nuvio.tv.LocaleCache
+import java.util.Locale
+
 @Singleton
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class TmdbSettingsDataStore @Inject constructor(
@@ -25,6 +28,16 @@ class TmdbSettingsDataStore @Inject constructor(
 ) {
     companion object {
         private const val FEATURE = "tmdb_settings"
+        const val TMDB_LANGUAGE_AUTO = "auto"
+
+        fun resolveEffectiveLanguage(stored: String?): String {
+            if (stored.isNullOrBlank() || stored.equals(TMDB_LANGUAGE_AUTO, ignoreCase = true)) {
+                val appTag = LocaleCache.localeTag.takeIf { it.isNotBlank() && it != LocaleCache.UNSET }
+                val systemTag = Locale.getDefault().toLanguageTag()
+                return (appTag ?: systemTag).takeIf { it.isNotBlank() && it != "und" } ?: "en"
+            }
+            return stored
+        }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -49,11 +62,14 @@ class TmdbSettingsDataStore @Inject constructor(
 
     val settings: StateFlow<TmdbSettings> = profileManager.activeProfileId.flatMapLatest { pid ->
         factory.get(pid, FEATURE).data.map { prefs ->
+            val storedLang = prefs[languageKey]
+            val effectiveLang = resolveEffectiveLanguage(storedLang)
             TmdbSettings(
                 enabled = prefs[enabledKey] ?: false,
                 modernHomeEnabled = prefs[modernHomeEnabledKey] ?: false,
                 enrichContinueWatching = prefs[enrichContinueWatchingKey] ?: true,
-                language = prefs[languageKey] ?: "en",
+                language = effectiveLang,
+                languagePreference = storedLang ?: TMDB_LANGUAGE_AUTO,
                 useArtwork = prefs[useArtworkKey] ?: true,
                 useBasicInfo = prefs[useBasicInfoKey] ?: true,
                 useDetails = prefs[useDetailsKey] ?: true,
@@ -81,7 +97,21 @@ class TmdbSettingsDataStore @Inject constructor(
     }
 
     suspend fun setLanguage(language: String) {
-        store().edit { it[languageKey] = language.ifBlank { "en" } }
+        store().edit { it[languageKey] = language.ifBlank { TMDB_LANGUAGE_AUTO } }
+    }
+
+    suspend fun onAppLanguageChanged(newAppLanguageTag: String, previousTag: String? = null) {
+        store().edit { prefs ->
+            val current = prefs[languageKey]
+            val wasFollowingApp = current == null ||
+                current.isBlank() ||
+                current.equals(TMDB_LANGUAGE_AUTO, ignoreCase = true) ||
+                current.equals("en", ignoreCase = true) ||
+                (previousTag != null && current.equals(previousTag, ignoreCase = true))
+            if (wasFollowingApp) {
+                prefs[languageKey] = TMDB_LANGUAGE_AUTO
+            }
+        }
     }
 
     suspend fun setUseArtwork(enabled: Boolean) {

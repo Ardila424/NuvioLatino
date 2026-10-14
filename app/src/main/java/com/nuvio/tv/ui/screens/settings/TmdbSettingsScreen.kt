@@ -123,10 +123,20 @@ fun TmdbSettingsContent(
                 }
 
                 item(key = "tmdb_language") {
-                    val languageName = AVAILABLE_TMDB_LANGUAGES
-                        .find { it.code == uiState.language }
-                        ?.displayName
-                        ?: uiState.language.uppercase()
+                    val isAuto = uiState.languagePreference.equals(com.nuvio.tv.data.local.TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO, ignoreCase = true) ||
+                        uiState.languagePreference.isBlank()
+                    val languageName = if (isAuto) {
+                        val resolvedName = AVAILABLE_TMDB_LANGUAGES
+                            .find { it.code.equals(uiState.language, ignoreCase = true) }
+                            ?.displayName
+                            ?: uiState.language.uppercase()
+                        stringResource(R.string.tmdb_language_match_app) + " ($resolvedName)"
+                    } else {
+                        AVAILABLE_TMDB_LANGUAGES
+                            .find { it.code.equals(uiState.languagePreference, ignoreCase = true) }
+                            ?.displayName
+                            ?: uiState.languagePreference.uppercase()
+                    }
                     SettingsActionRow(
                         title = stringResource(R.string.tmdb_language_title),
                         subtitle = stringResource(R.string.tmdb_language_subtitle),
@@ -257,12 +267,18 @@ fun TmdbSettingsContent(
     }
 
     if (showLanguageDialog) {
+        val matchAppOption = com.nuvio.tv.data.local.TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO to stringResource(R.string.tmdb_language_match_app)
         LanguageSelectionDialog(
             title = stringResource(R.string.tmdb_language_dialog_title),
-            selectedLanguage = uiState.language,
+            selectedLanguage = uiState.languagePreference,
             showNoneOption = false,
+            extraOptions = listOf(matchAppOption),
             onLanguageSelected = { language ->
-                viewModel.onEvent(TmdbSettingsEvent.SetLanguage(language ?: "en"))
+                viewModel.onEvent(
+                    TmdbSettingsEvent.SetLanguage(
+                        language ?: com.nuvio.tv.data.local.TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO
+                    )
+                )
                 showLanguageDialog = false
             },
             onDismiss = { showLanguageDialog = false }

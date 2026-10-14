@@ -6,6 +6,8 @@ data class TmdbSettings(
     val enrichContinueWatching: Boolean = true,
     // TMDB language preference (ISO-639-1, default English)
     val language: String = "en",
+    // Configured language preference ("auto" or explicit ISO language code)
+    val languagePreference: String = "auto",
     // Group: Artwork (logo, backdrop)
     val useArtwork: Boolean = true,
     // Group: Basic Info (description, genres, rating)

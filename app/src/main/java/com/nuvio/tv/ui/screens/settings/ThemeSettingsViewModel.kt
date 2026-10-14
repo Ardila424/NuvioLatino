@@ -53,12 +53,19 @@ sealed class ThemeSettingsEvent {
 class ThemeSettingsViewModel @Inject constructor(
     private val themeDataStore: ThemeDataStore,
     private val memberAccessRepository: MemberAccessRepository,
-    private val appIconManager: AppIconManager
+    private val appIconManager: AppIconManager,
+    private val tmdbSettingsDataStore: com.nuvio.tv.data.local.TmdbSettingsDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ThemeSettingsUiState())
     val uiState: StateFlow<ThemeSettingsUiState> = _uiState.asStateFlow()
     val appIconState = appIconManager.state
+
+    fun onAppLanguageChanged(newTag: String, previousTag: String? = null) {
+        viewModelScope.launch {
+            tmdbSettingsDataStore.onAppLanguageChanged(newTag, previousTag)
+        }
+    }
 
     private var restoreStyleFocus = false
 

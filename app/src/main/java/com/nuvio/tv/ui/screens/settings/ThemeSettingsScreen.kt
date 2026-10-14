@@ -373,6 +373,7 @@ fun ThemeSettingsContent(
                 context.getSharedPreferences("app_locale", android.content.Context.MODE_PRIVATE)
                     .edit().putString("locale_tag", newTag).apply()
                 LocaleCache.localeTag = newTag
+                viewModel.onAppLanguageChanged(newTag, previousTag)
                 selectedTag = tag
                 showLanguageDialog = false
                 if (previousTag != tag) {

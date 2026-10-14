@@ -1471,6 +1471,7 @@
     <string name="tmdb_collections_subtitle">TMDB movie collections in release order</string>
 
     <string name="tmdb_language_dialog_title">TMDB Language</string>
+    <string name="tmdb_language_match_app">Match app language</string>
 
     <string name="trakt_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
     <string name="trakt_connected_as">Connected as %1$s</string>

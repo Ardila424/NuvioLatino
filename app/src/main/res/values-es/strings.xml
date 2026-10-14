@@ -1391,6 +1391,7 @@
     <string name="tmdb_collections_subtitle">Colecciones de películas de TMDB en orden de lanzamiento</string>
 
     <string name="tmdb_language_dialog_title">Idioma de TMDB</string>
+    <string name="tmdb_language_match_app">Igual que el idioma de la app</string>
 
     <string name="trakt_description">Sincroniza tu lista de deseos, progreso de visualización, continuar viendo, scrobbles y listas personales con Trakt.</string>
     <string name="trakt_connected_as">Conectado como %1$s</string>

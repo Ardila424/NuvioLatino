@@ -45,11 +45,12 @@ class TmdbSettingsViewModel @Inject constructor(
                 update { dataStore.setEnrichContinueWatching(event.enabled) }
             }
             is TmdbSettingsEvent.SetLanguage -> update {
-                val newLanguage = event.language.ifBlank { "en" }
-                val currentLanguage = _uiState.value.language.ifBlank { "en" }
+                val newLanguage = event.language.ifBlank { TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO }
+                val currentLanguage = _uiState.value.languagePreference.ifBlank { TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO }
                 dataStore.setLanguage(newLanguage)
                 if (!newLanguage.equals(currentLanguage, ignoreCase = true)) {
                     trailerService.clearCache()
+                    cwEnrichmentCache.clearAll()
                 }
             }
             is TmdbSettingsEvent.ToggleArtwork -> update { dataStore.setUseArtwork(event.enabled) }
@@ -75,6 +76,7 @@ data class TmdbSettingsUiState(
     val modernHomeEnabled: Boolean = false,
     val enrichContinueWatching: Boolean = true,
     val language: String = "en",
+    val languagePreference: String = TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO,
     val useArtwork: Boolean = true,
     val useBasicInfo: Boolean = true,
     val useDetails: Boolean = true,
@@ -91,6 +93,7 @@ data class TmdbSettingsUiState(
         modernHomeEnabled = settings.modernHomeEnabled,
         enrichContinueWatching = settings.enrichContinueWatching,
         language = settings.language,
+        languagePreference = settings.languagePreference,
         useArtwork = settings.useArtwork,
         useBasicInfo = settings.useBasicInfo,
         useDetails = settings.useDetails,

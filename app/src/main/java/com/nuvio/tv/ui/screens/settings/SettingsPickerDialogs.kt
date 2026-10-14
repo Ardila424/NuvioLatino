@@ -80,10 +80,12 @@ internal fun LanguageSelectionDialog(
             add(SettingsPickerOption(null, stringResource(R.string.action_none)))
         }
         extraOptions.forEach { (code, name) ->
+            val isCustomBadgeHidden = code == AudioLanguageOption.ORIGINAL ||
+                code.equals(com.nuvio.tv.data.local.TmdbSettingsDataStore.TMDB_LANGUAGE_AUTO, ignoreCase = true)
             add(SettingsPickerOption(
                 code, name,
                 description = if (code == AudioLanguageOption.ORIGINAL) originalHint else null,
-                trailing = if (code == AudioLanguageOption.ORIGINAL) null else code.uppercase()
+                trailing = if (isCustomBadgeHidden) null else code.uppercase()
             ))
         }
         sortedLanguages.forEach { language ->
