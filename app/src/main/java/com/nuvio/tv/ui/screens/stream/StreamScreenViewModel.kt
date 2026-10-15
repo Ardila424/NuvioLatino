@@ -1300,45 +1300,77 @@ class StreamScreenViewModel @Inject constructor(
         return parseRuntimeMinutes(meta.runtime)
     }
 
+    private var streamFilterJob: Job? = null
+
+    private data class StreamSortAttributes(
+        val isLatino: Boolean,
+        val isSpanishOrLatino: Boolean,
+        val sizeBytes: Long
+    )
+
     private fun filterByAddon(addonName: String?) {
         streamFilterExpandJob?.cancel()
+        streamFilterJob?.cancel()
+        val currentAddon = _uiState.value.selectedAddonFilter
+        if (currentAddon == addonName) return
+        val currentQuick = _uiState.value.selectedQuickFilter
+        val streams = _uiState.value.allStreams
+
         updateUiStateIfChanged { state ->
-            if (state.selectedAddonFilter == addonName) {
-                return@updateUiStateIfChanged state
-            }
-            val fullFiltered = computeFilteredStreams(state.allStreams, addonName, state.selectedQuickFilter)
+            state.copy(selectedAddonFilter = addonName)
+        }
+
+        streamFilterJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val fullFiltered = computeFilteredStreams(streams, addonName, currentQuick)
+            ensureActive()
             streamFilterFullList = fullFiltered
             val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
                 fullFiltered.subList(0, STREAM_FILTER_PAGE_SIZE)
             } else {
                 fullFiltered
             }
-            state.copy(
-                selectedAddonFilter = addonName,
-                filteredStreams = paginatedStreams
-            )
+            updateUiStateIfChanged { state ->
+                if (state.selectedAddonFilter == addonName && state.selectedQuickFilter == currentQuick) {
+                    state.copy(filteredStreams = paginatedStreams)
+                } else {
+                    state
+                }
+            }
         }
     }
 
     private fun filterByQuickFilter(quickFilter: StreamQuickFilter) {
         streamFilterExpandJob?.cancel()
+        streamFilterJob?.cancel()
+        val currentFilter = _uiState.value.selectedQuickFilter
+        val nextFilter = if (currentFilter == quickFilter && quickFilter != StreamQuickFilter.ALL) {
+            StreamQuickFilter.ALL
+        } else {
+            quickFilter
+        }
+        val currentAddon = _uiState.value.selectedAddonFilter
+        val streams = _uiState.value.allStreams
+
         updateUiStateIfChanged { state ->
-            val nextFilter = if (state.selectedQuickFilter == quickFilter && quickFilter != StreamQuickFilter.ALL) {
-                StreamQuickFilter.ALL
-            } else {
-                quickFilter
-            }
-            val fullFiltered = computeFilteredStreams(state.allStreams, state.selectedAddonFilter, nextFilter)
+            state.copy(selectedQuickFilter = nextFilter)
+        }
+
+        streamFilterJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val fullFiltered = computeFilteredStreams(streams, currentAddon, nextFilter)
+            ensureActive()
             streamFilterFullList = fullFiltered
             val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
                 fullFiltered.subList(0, STREAM_FILTER_PAGE_SIZE)
             } else {
                 fullFiltered
             }
-            state.copy(
-                selectedQuickFilter = nextFilter,
-                filteredStreams = paginatedStreams
-            )
+            updateUiStateIfChanged { state ->
+                if (state.selectedQuickFilter == nextFilter && state.selectedAddonFilter == currentAddon) {
+                    state.copy(filteredStreams = paginatedStreams)
+                } else {
+                    state
+                }
+            }
         }
     }
 
@@ -1363,22 +1395,39 @@ class StreamScreenViewModel @Inject constructor(
         } else {
             allStreams.filter { it.addonName == addonFilter }
         }
-        val comparator = compareByDescending<Stream> { isStreamLatino(it) }
-            .thenByDescending { isStreamSpanishOrLatino(it) }
-            .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
 
-        return when (quickFilter) {
-            StreamQuickFilter.ALL -> byAddon
-            StreamQuickFilter.REMUX -> byAddon
-                .filter { NativeStreamBadgeDetector.isRemux(it) }
-                .sortedWith(comparator)
-            StreamQuickFilter.SPANISH -> byAddon
-                .filter { isStreamSpanishOrLatino(it) }
-                .sortedWith(comparator)
-            StreamQuickFilter.UHD_4K -> byAddon
-                .filter { NativeStreamBadgeDetector.is4K(it) }
-                .sortedWith(comparator)
+        val filtered = when (quickFilter) {
+            StreamQuickFilter.ALL -> return byAddon
+            StreamQuickFilter.REMUX -> byAddon.filter { NativeStreamBadgeDetector.isRemux(it) }
+            StreamQuickFilter.SPANISH -> byAddon.filter { isStreamSpanishOrLatino(it) }
+            StreamQuickFilter.UHD_4K -> byAddon.filter { NativeStreamBadgeDetector.is4K(it) }
         }
+
+        if (filtered.size <= 1) return filtered
+
+        val attrMap = HashMap<Stream, StreamSortAttributes>(filtered.size)
+        for (stream in filtered) {
+            val latino = isStreamLatino(stream)
+            val spanish = if (latino) true else isStreamSpanishOrLatino(stream)
+            val size = StreamTextSizeParser.effectiveSizeBytes(stream) ?: 0L
+            attrMap[stream] = StreamSortAttributes(latino, spanish, size)
+        }
+
+        val comparator = Comparator<Stream> { a, b ->
+            val attrA = attrMap[a]
+            val attrB = attrMap[b]
+            if (attrA != null && attrB != null) {
+                if (attrA.isLatino != attrB.isLatino) {
+                    return@Comparator if (attrA.isLatino) -1 else 1
+                }
+                if (attrA.isSpanishOrLatino != attrB.isSpanishOrLatino) {
+                    return@Comparator if (attrA.isSpanishOrLatino) -1 else 1
+                }
+                attrB.sizeBytes.compareTo(attrA.sizeBytes)
+            } else 0
+        }
+
+        return filtered.sortedWith(comparator)
     }
 
     fun expandFilteredStreamsIfNeeded() {

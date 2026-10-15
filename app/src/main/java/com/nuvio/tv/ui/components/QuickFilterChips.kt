@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,10 @@ import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.ui.screens.stream.StreamQuickFilter
 import com.nuvio.tv.ui.theme.NuvioTheme
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+
 data class QuickFilterOption(
     val filter: StreamQuickFilter,
     val icon: String,
@@ -53,15 +58,32 @@ fun QuickFilterChips(
     onDownKey: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val options = remember(allStreams) {
-        val remuxCount = allStreams.count { NativeStreamBadgeDetector.isRemux(it) }
-        val spanishCount = allStreams.count { NativeStreamBadgeDetector.isSpanishOrLatino(it) }
-        val uhdCount = allStreams.count { NativeStreamBadgeDetector.is4K(it) }
+    var filterCounts by remember(allStreams) {
+        mutableStateOf(
+            Triple(0, 0, 0)
+        )
+    }
+
+    LaunchedEffect(allStreams) {
+        if (allStreams.isEmpty()) {
+            filterCounts = Triple(0, 0, 0)
+            return@LaunchedEffect
+        }
+        val counts = withContext(Dispatchers.Default) {
+            val remux = allStreams.count { NativeStreamBadgeDetector.isRemux(it) }
+            val spanish = allStreams.count { NativeStreamBadgeDetector.isSpanishOrLatino(it) }
+            val uhd = allStreams.count { NativeStreamBadgeDetector.is4K(it) }
+            Triple(remux, spanish, uhd)
+        }
+        filterCounts = counts
+    }
+
+    val options = remember(allStreams.size, filterCounts) {
         listOf(
             QuickFilterOption(StreamQuickFilter.ALL, "", R.string.stream_filter_all, allStreams.size),
-            QuickFilterOption(StreamQuickFilter.REMUX, "💎 ", R.string.stream_filter_remux, remuxCount),
-            QuickFilterOption(StreamQuickFilter.SPANISH, "🇲🇽 ", R.string.stream_filter_spanish, spanishCount),
-            QuickFilterOption(StreamQuickFilter.UHD_4K, "📺 ", R.string.stream_filter_4k, uhdCount)
+            QuickFilterOption(StreamQuickFilter.REMUX, "💎 ", R.string.stream_filter_remux, filterCounts.first),
+            QuickFilterOption(StreamQuickFilter.SPANISH, "🇲🇽 ", R.string.stream_filter_spanish, filterCounts.second),
+            QuickFilterOption(StreamQuickFilter.UHD_4K, "📺 ", R.string.stream_filter_4k, filterCounts.third)
         )
     }
 
@@ -69,6 +91,15 @@ fun QuickFilterChips(
     val focusRequesters = externalFocusRequesters ?: internalRequesters
 
     var focusedIndex by remember { mutableIntStateOf(0) }
+    var focusedFilter by remember { mutableStateOf<StreamQuickFilter?>(null) }
+
+    LaunchedEffect(focusedFilter) {
+        val target = focusedFilter ?: return@LaunchedEffect
+        delay(200L)
+        if (selectedFilter != target) {
+            onFilterSelected(target)
+        }
+    }
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md),
@@ -107,16 +138,19 @@ fun QuickFilterChips(
 
             FilterChip(
                 selected = isSelected,
-                onClick = { onFilterSelected(option.filter) },
+                onClick = { 
+                    focusedFilter = null
+                    onFilterSelected(option.filter)
+                },
                 modifier = Modifier
                     .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
                     .onFocusChanged {
                         isFocused = it.isFocused
                         if (it.isFocused) {
                             focusedIndex = index
-                            if (selectedFilter != option.filter) {
-                                onFilterSelected(option.filter)
-                            }
+                            focusedFilter = option.filter
+                        } else if (focusedFilter == option.filter) {
+                            focusedFilter = null
                         }
                     },
                 colors = FilterChipDefaults.colors(
