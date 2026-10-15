@@ -59,7 +59,9 @@ import com.nuvio.tv.ui.util.recompositionHighlighter
 import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.request.crossfade
+import coil3.size.Precision
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -218,6 +220,8 @@ fun GridContentCard(
                     val builder = ImageRequest.Builder(context)
                         .data(effectiveImageUrl)
                         .crossfade(imageCrossfade)
+                        .precision(coil3.size.Precision.INEXACT)
+                        .allowHardware(true)
                         .size(width = requestWidthPx, height = requestHeightPx)
                         .memoryCacheKey("${effectiveImageUrl}_${requestWidthPx}x${requestHeightPx}_v$revalidationKey")
                     if (revalidationKey > 0) {
@@ -271,6 +275,8 @@ fun GridContentCard(
                             ImageRequest.Builder(context)
                                 .data(item.logo)
                                 .crossfade(true)
+                                .precision(coil3.size.Precision.INEXACT)
+                                .allowHardware(true)
                                 .build()
                         }
                         AsyncImage(
@@ -319,7 +325,7 @@ fun GridContentCard(
                             .fillMaxWidth()
                             .height(cardHeight * 0.45f)
                             .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
+                                compositingStrategy = CompositingStrategy.Auto
                             }
                             .drawWithCache {
                                 val gradient = Brush.verticalGradient(
@@ -332,6 +338,8 @@ fun GridContentCard(
                         ImageRequest.Builder(context)
                             .data(item.logo)
                             .crossfade(true)
+                            .precision(coil3.size.Precision.INEXACT)
+                            .allowHardware(true)
                             .build()
                     }
                     AsyncImage(

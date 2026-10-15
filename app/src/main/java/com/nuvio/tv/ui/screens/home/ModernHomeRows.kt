@@ -6,9 +6,12 @@ import com.nuvio.tv.ui.theme.NuvioTheme
 
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import coil3.request.allowHardware
+import coil3.size.Precision
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -723,6 +726,8 @@ internal fun ModernRowSection(
                 imageLoader.enqueue(
                     ImageRequest.Builder(context)
                         .data(url)
+                        .precision(coil3.size.Precision.INEXACT)
+                        .allowHardware(!blur)
                         .memoryCacheKey(cacheKey)
                         .size(width = widthPx, height = heightPx)
                         .apply {
@@ -1100,6 +1105,7 @@ private fun ModernCarouselCard(
     val animatedCardWidthState = if (focusedPosterBackdropExpandEnabled) {
         animateDpAsState(
             targetValue = targetCardWidth,
+            animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
             label = "modernCardWidth"
         )
     } else {
@@ -1208,6 +1214,8 @@ private fun ModernCarouselCard(
             val builder = ImageRequest.Builder(context)
                 .data(it)
                 .crossfade(true)
+                .precision(coil3.size.Precision.INEXACT)
+                .allowHardware(true)
                 .memoryCacheKey("${it}_${requestWidthPx}x${requestHeightPx}_v$revalidationKey")
                 .size(width = requestWidthPx, height = requestHeightPx)
             if (revalidationKey > 0) {
@@ -1241,6 +1249,8 @@ private fun ModernCarouselCard(
             ImageRequest.Builder(context)
                 .data(it)
                 .crossfade(true)
+                .precision(coil3.size.Precision.INEXACT)
+                .allowHardware(true)
                 .memoryCacheKey("${it}_${maxLogoWidthPx}x${logoHeightPx}")
                 .size(width = maxLogoWidthPx, height = logoHeightPx)
                 .build()
@@ -1438,6 +1448,7 @@ private fun ModernCarouselCard(
                         val gifModel = remember(context, focusGifUrl, requestWidthPx, requestHeightPx) {
                             ImageRequest.Builder(context)
                                 .data(focusGifUrl)
+                                .precision(coil3.size.Precision.INEXACT)
                                 .memoryCacheKey("${focusGifUrl}_${requestWidthPx}x${requestHeightPx}")
                                 .size(width = requestWidthPx, height = requestHeightPx)
                                 .build()
@@ -1445,7 +1456,7 @@ private fun ModernCarouselCard(
                         var gifLoaded by remember(focusGifUrl) { mutableStateOf(false) }
                         val gifAlpha by animateFloatAsState(
                             targetValue = if (gifLoaded) 1f else 0f,
-                            animationSpec = tween(durationMillis = 200),
+                            animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
                             label = "gifFadeIn"
                         )
                         AsyncImage(

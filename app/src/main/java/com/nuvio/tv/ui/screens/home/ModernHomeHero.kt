@@ -60,6 +60,9 @@ import com.nuvio.tv.ui.util.recompositionHighlighter
 import coil3.request.transitionFactory
 import com.nuvio.tv.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import coil3.request.allowHardware
+import coil3.size.Precision
 import com.nuvio.tv.ui.components.ImdbRatingSourceLabel
 import com.nuvio.tv.ui.components.TrailerPlayer
 import androidx.compose.ui.res.stringResource
@@ -134,14 +137,26 @@ internal fun ModernHeroMediaLayer(
     )
     val localContext = LocalContext.current
 
-    // Backdrop URL is managed upstream (heroSceneStateLambda freezes it
-    // during rapid nav / scroll). Only update when enrichment is not active
-    val rawBackdrop by remember { derivedStateOf { heroBackdrop() } }
-    val enriching by remember { derivedStateOf { enrichmentActive() } }
     var displayedBackdrop by remember { mutableStateOf(HeroBackdropState.lastDisplayedUrl ?: heroBackdrop()) }
-    if (rawBackdrop != null && rawBackdrop != displayedBackdrop && !enriching) {
-        displayedBackdrop = rawBackdrop!!
+
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            heroBackdrop() to enrichmentActive()
+        }.collectLatest { (raw, enriching) ->
+            if (raw.isNullOrBlank() || enriching) return@collectLatest
+            if (raw == displayedBackdrop) return@collectLatest
+
+            // Debounce backdrop image load during continuous D-Pad navigation.
+            // If displayedBackdrop is null (initial screen load), display immediately.
+            // When moving between cards, debounce by 180ms so fast browsing does not churn decodes.
+            if (displayedBackdrop != null) {
+                delay(180L)
+            }
+            displayedBackdrop = raw
+            HeroBackdropState.update(raw)
+        }
     }
+
     val imageModel = remember(
         localContext,
         displayedBackdrop,
@@ -152,12 +167,10 @@ internal fun ModernHeroMediaLayer(
             ImageRequest.Builder(localContext)
                 .data(it)
                 .size(width = requestWidthPx, height = requestHeightPx)
+                .precision(coil3.size.Precision.INEXACT)
+                .allowHardware(true)
                 .build()
         }
-    }
-    // Keep HeroBackdropState in sync for navigation transitions.
-    LaunchedEffect(displayedBackdrop) {
-        displayedBackdrop?.let { HeroBackdropState.update(it) }
     }
 
     Box(modifier = modifier) {
@@ -172,7 +185,7 @@ internal fun ModernHeroMediaLayer(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
+                        compositingStrategy = CompositingStrategy.Auto
                         alpha = 1f - transitionProgressState.value
                     },
                 contentScale = ContentScale.Crop,
@@ -305,22 +318,23 @@ internal fun HeroTitleBlock(
     trailerPlaying: () -> Boolean = { false },
     modifier: Modifier = Modifier
 ) {
-    val currentPreview = previewProvider()
     val isEnriching = enrichmentActive()
-    
-    var stablePreview by remember { mutableStateOf<HeroPreview?>(null) }
+
+    var displayedPreview by remember { mutableStateOf(previewProvider()) }
 
     LaunchedEffect(Unit) {
-        snapshotFlow { Pair(previewProvider(), enrichmentActive()) }.collect { (p, e) ->
-            if (!e && p != null) {
-                if (stablePreview != p) stablePreview = p
-            } else if (e) {
-                if (stablePreview != null) stablePreview = null
+        snapshotFlow { previewProvider() to enrichmentActive() }
+            .collectLatest { (preview, enriching) ->
+                if (enriching || preview == null) return@collectLatest
+                if (preview == displayedPreview) return@collectLatest
+                if (displayedPreview != null) {
+                    delay(180L)
+                }
+                displayedPreview = preview
             }
-        }
     }
 
-    val displayPreview = if (!isEnriching && currentPreview != null) currentPreview else stablePreview
+    val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
     Box(
@@ -370,6 +384,8 @@ private fun HeroTitleContent(
                 .data(it)
                 .crossfade(true)
                 .size(width = logoMaxWidthPx, height = logoHeightPx)
+                .precision(coil3.size.Precision.INEXACT)
+                .allowHardware(true)
                 .build()
         }
     }

@@ -75,6 +75,8 @@ import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.size.Precision
 import coil3.request.transformations
 import coil3.request.crossfade
 import kotlin.math.roundToInt
@@ -589,6 +591,8 @@ fun ContinueWatchingCard(
         val builder = ImageRequest.Builder(context)
             .data(effectiveImageModel)
             .crossfade(true)
+            .precision(coil3.size.Precision.INEXACT)
+            .allowHardware(!shouldBlur)
             .memoryCacheKey(
                 continueWatchingImageCacheKey(
                     effectiveImageModel, requestWidthPx, requestHeightPx, shouldBlur

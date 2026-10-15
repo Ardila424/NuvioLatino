@@ -30,10 +30,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import coil3.request.allowHardware
+import coil3.size.Precision
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -187,7 +190,11 @@ fun ContentCard(
         !isFocused && !isBackdropExpanded -> baseCardWidth
         else -> {
             val targetCardWidth = if (isBackdropExpanded) expandedCardWidth else baseCardWidth
-            val width by animateDpAsState(targetValue = targetCardWidth, label = "contentCardWidth")
+            val width by animateDpAsState(
+                targetValue = targetCardWidth,
+                animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+                label = "contentCardWidth"
+            )
             width
         }
     }
@@ -269,6 +276,8 @@ fun ContentCard(
             val builder = ImageRequest.Builder(context)
                 .data(imageUrl)
                 .crossfade(true)
+                .precision(coil3.size.Precision.INEXACT)
+                .allowHardware(true)
                 .memoryCacheKey("${imageUrl}_${requestWidthPx}x${requestHeightPx}_v$revalidationKey")
                 .size(width = requestWidthPx, height = requestHeightPx)
             if (revalidationKey > 0) {
@@ -290,6 +299,8 @@ fun ContentCard(
                 ImageRequest.Builder(context)
                     .data(logoUrl)
                     .crossfade(false)
+                    .precision(coil3.size.Precision.INEXACT)
+                    .allowHardware(true)
                     .memoryCacheKey("${logoUrl}_${requestWidthPx}x${logoRequestHeightPx}")
                     .size(width = requestWidthPx, height = logoRequestHeightPx)
                     .build()
@@ -500,7 +511,7 @@ fun ContentCard(
                             .fillMaxWidth()
                             .height(96.dp)
                             .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
+                                compositingStrategy = CompositingStrategy.Auto
                             }
                             .drawWithCache {
                                 val gradient = Brush.verticalGradient(
@@ -555,7 +566,7 @@ fun ContentCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .zIndex(1.5f)
-                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Auto }
                             .drawWithCache {
                                 val gradient = Brush.verticalGradient(
                                     colorStops = arrayOf(
@@ -585,7 +596,7 @@ fun ContentCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .zIndex(1.5f)
-                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Auto }
                             .drawWithCache {
                                 val gradient = Brush.verticalGradient(
                                     colorStops = arrayOf(
