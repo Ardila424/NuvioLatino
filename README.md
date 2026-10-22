@@ -1,5 +1,7 @@
 <div align="center">
 
+  <img src="assets/brand/nuvio-latino-logo-dark.png" alt="Nuvio Latino" width="440" />
+
 # Nuvio Latino
 
 **Nuvio TV, optimizado para quien busca audio latino.**
