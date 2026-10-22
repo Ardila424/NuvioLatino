@@ -12,6 +12,18 @@
 
 </div>
 
+## This fork — Ardila's build
+
+Custom features on top of upstream Nuvio TV:
+
+- **Latino audio detection** — accurate Latin American (Latino) audio detection via a direct EBML header probe, plus an on-demand Remux audio inspector that removes false positives while preserving the Castellano badge.
+- **Latino/Remux badges & quick filters** — native badges on streams and one-tap filter chips that auto-select on focus.
+- **Latin alternative titles** — TMDb Latin American alternative titles, with TMDb metadata language synced to the app language.
+- **Trakt recommendations** — support for the Trakt user recommendations collection.
+- **Performance for low-end TVs** — 60fps D-Pad navigation, Coil hardware bitmaps, debounced hero loading, and background stream filtering.
+- **Unreleased content filtering** — hides announced/unreleased titles.
+- **Fork-specific updater** — in-app updater pointed at this fork, with the debug build labeled.
+
 ## Get Nuvio TV
 
 - [Android TV on Google Play](https://play.google.com/store/apps/details?id=com.nuvio.app)
