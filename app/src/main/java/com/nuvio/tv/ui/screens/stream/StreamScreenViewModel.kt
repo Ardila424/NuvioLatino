@@ -79,11 +79,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 
 private const val TAG = "StreamScreenViewModel"
 private const val DIRECT_AUTOPLAY_HARD_TIMEOUT_MS = 60_000L
 private const val STREAM_FILTER_PAGE_SIZE = 100
+private const val BATCH_PROBE_COUNT = 8
+private const val BATCH_PROBE_CONCURRENCY = 2
+private const val FOCUS_PROBE_DELAY_MS = 1_200L
 
 @HiltViewModel
 class StreamScreenViewModel @Inject constructor(
@@ -133,6 +138,9 @@ class StreamScreenViewModel @Inject constructor(
     private var playbackMetaVideos: List<Video>? = null
     private var streamFocusProbeJob: Job? = null
     private val probedStreamKeys = ConcurrentHashMap.newKeySet<String>()
+    private var batchProbeStarted = false
+    private var batchProbeJob: Job? = null
+    private val batchProbeSemaphore = Semaphore(BATCH_PROBE_CONCURRENCY)
     private var latinAlternativeTitles: List<String> = emptyList()
 
     private val embeddedStreamGroupName: String by lazy {
@@ -289,6 +297,7 @@ class StreamScreenViewModel @Inject constructor(
                 val currentAddons = _uiState.value.addonStreams
                 pending = currentAddons.filter { it.addonName !in badgedAddonNames }
             }
+            maybeStartBatchProbe()
         }
     }
 
@@ -315,6 +324,7 @@ class StreamScreenViewModel @Inject constructor(
                         else fullFiltered.subList(0, pageEnd)
                 )
             }
+            maybeStartBatchProbe()
         }
     }
 
@@ -325,12 +335,44 @@ class StreamScreenViewModel @Inject constructor(
         if (probedStreamKeys.contains(key)) return
 
         streamFocusProbeJob = viewModelScope.launch {
-            delay(5000L)
+            delay(FOCUS_PROBE_DELAY_MS)
             ensureActive()
             val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)
             if (result is StreamAudioProbeResult.Success) {
                 probedStreamKeys.add(key)
                 applyProbedStreamResult(stream, result)
+            }
+        }
+    }
+
+    /**
+     * Verifies the audio of the top Remux streams as soon as the list loads,
+     * so "at a glance" Latino verification is ready without waiting for focus.
+     * Runs at most once per stream list load; a bounded semaphore protects
+     * debrid accounts from a burst of probe requests.
+     */
+    private fun maybeStartBatchProbe() {
+        if (batchProbeStarted) return
+        val allStreams = _uiState.value.allStreams
+        if (allStreams.isEmpty()) return
+        batchProbeStarted = true
+        batchProbeJob = viewModelScope.launch {
+            val candidates = allStreams
+                .filter { NativeStreamBadgeDetector.isRemux(it) }
+                .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+                .take(BATCH_PROBE_COUNT)
+            for (stream in candidates) {
+                ensureActive()
+                val key = stream.badgeMergeKey()
+                if (probedStreamKeys.contains(key)) continue
+                batchProbeSemaphore.withPermit {
+                    ensureActive()
+                    val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)
+                    if (result is StreamAudioProbeResult.Success) {
+                        probedStreamKeys.add(key)
+                        applyProbedStreamResult(stream, result)
+                    }
+                }
             }
         }
     }
@@ -510,6 +552,8 @@ class StreamScreenViewModel @Inject constructor(
         streamBadgePresentationJob?.cancel()
         streamBadgePresentationRequestId += 1
         streamFocusProbeJob?.cancel()
+        batchProbeJob?.cancel()
+        batchProbeStarted = false
         if (forceRefresh || _uiState.value.addonStreams.isEmpty()) {
             badgedAddonNames = emptySet()
         }
@@ -1857,6 +1901,7 @@ class StreamScreenViewModel @Inject constructor(
         }
         externalOverlayHideJob?.cancel()
         streamFocusProbeJob?.cancel()
+        batchProbeJob?.cancel()
         streamLoadScope?.cancel()
         streamLoadScope = null
         streamLoadJob = null
