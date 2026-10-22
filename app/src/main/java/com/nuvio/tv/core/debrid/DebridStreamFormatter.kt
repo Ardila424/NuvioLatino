@@ -21,13 +21,14 @@ class DebridStreamFormatter @Inject constructor(
     fun format(
         stream: Stream,
         settings: DebridSettings,
-        compiledBadgeFilters: List<CompiledStreamBadgeFilter> = emptyList()
+        compiledBadgeFilters: List<CompiledStreamBadgeFilter> = emptyList(),
+        facts: DirectDebridStreamFilter.StreamFacts? = null
     ): Stream {
         if (!stream.isManagedDebridForFormatting()) return stream
         val matchedBadges = StreamBadgeMatcher.matchedBadges(stream, compiledBadgeFilters)
         val nativeBadges = com.nuvio.tv.core.streams.NativeStreamBadgeDetector.detectBadges(stream)
         val allBadges = (stream.badges + nativeBadges + matchedBadges).distinctBy { it.name }
-        val values = buildValues(stream, settings, allBadges)
+        val values = buildValues(stream, allBadges, facts ?: DirectDebridStreamFilter.facts(stream, settings))
         val formattedName = engine.render(settings.streamNameTemplate, values)
             .lineSequence()
             .joinToString(" ") { it.trim() }
@@ -49,13 +50,12 @@ class DebridStreamFormatter @Inject constructor(
 
     private fun buildValues(
         stream: Stream,
-        settings: DebridSettings,
-        matchedBadges: List<StreamBadge>
+        matchedBadges: List<StreamBadge>,
+        facts: DirectDebridStreamFilter.StreamFacts
     ): Map<String, Any?> {
         val resolve = stream.clientResolve
         val raw = resolve?.stream?.raw
         val parsed = raw?.parsed
-        val facts = DirectDebridStreamFilter.facts(stream, settings)
         val season = resolve?.season
         val episode = resolve?.episode
         val seasons = parsed?.seasons.orEmpty()
@@ -195,11 +195,12 @@ class DebridStreamFormatter @Inject constructor(
             "ja", "jpn", "japanese" -> "🇯🇵"
             "ko", "kor", "korean" -> "🇰🇷"
             "fr", "fre", "fra", "french" -> "🇫🇷"
-            "es", "spa", "spanish", "castellano" -> "🇪🇸"
+            "es", "spa", "spn", "esp", "spanish", "castellano" -> "🇪🇸"
             "la", "lat", "latino", "es-419" -> "🇲🇽"
             "pt", "por", "portuguese" -> "🇵🇹"
             "de", "ger", "deu", "german" -> "🇩🇪"
             "it", "ita", "italian" -> "🇮🇹"
+            "he", "heb", "hbo", "iw", "hebrew" -> "🇮🇱"
             "multi" -> "Multi"
             else -> language
         }
