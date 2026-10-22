@@ -1,0 +1,29 @@
+Nuvio Latino
+============
+
+Nuvio Latino is an unofficial community fork of Nuvio TV
+(https://github.com/NuvioMedia/NuvioTV), licensed under the GNU General Public
+License v3.0 (see LICENSE).
+
+Upstream project
+----------------
+Copyright and attribution for the original Nuvio TV code belong to the
+NuvioTV project and its contributors:
+https://github.com/NuvioMedia/NuvioTV
+
+All upstream copyright notices, licence headers and author attributions are
+kept in this repository.
+
+Nuvio Latino changes
+--------------------
+Changes on top of upstream are by Santiago Ardila and contributors, from
+2026 onwards. See the repository commit history.
+
+Third-party components
+----------------------
+This project depends on third-party libraries and components. Their licences
+and notices are distributed with the application (Settings > About >
+Licenses & attribution) and remain the property of their respective owners.
+
+Nuvio Latino is not affiliated with or endorsed by the NuvioTV project or any
+of the services named in the application.
