@@ -114,14 +114,30 @@ internal fun SubtitleSelectionOverlay(
     val sessionSelectedAddonSubtitle = remember(visible) { selectedAddonSubtitle?.copy() }
     val sessionInstalledSubtitleAddonOrder = remember(visible) { installedSubtitleAddonOrder.toList() }
     val sessionIsLoadingAddons = isLoadingAddons
+    val sessionVisibleTargets = remember(
+        visible,
+        sessionPreferredLanguage,
+        sessionSecondaryPreferredLanguage,
+        sessionShowOnlyPreferredLanguages
+    ) {
+        SubtitleVisibilityPolicy.visibleSubtitleTargets(
+            showOnly = sessionShowOnlyPreferredLanguages,
+            preferred = sessionPreferredLanguage,
+            secondary = sessionSecondaryPreferredLanguage
+        )
+    }
+    val sessionMergeSpanish = remember(visible, sessionVisibleTargets) {
+        SubtitleVisibilityPolicy.mergesSpanishFamily(sessionVisibleTargets)
+    }
     val sessionSelectedSubtitleLanguageKey = remember(visible) {
         selectedSubtitleLanguageKey(
             internalTracks = sessionInternalTracks,
             selectedInternalIndex = sessionSelectedInternalIndex,
-            selectedAddonSubtitle = sessionSelectedAddonSubtitle
+            selectedAddonSubtitle = sessionSelectedAddonSubtitle,
+            mergeSpanish = sessionMergeSpanish
         )
     }
-    val languageItems = remember(visible, sessionAddonSubtitles) {
+    val languageItems = remember(visible, sessionAddonSubtitles, sessionMergeSpanish) {
         buildSubtitleLanguageRailItems(
             internalTracks = sessionInternalTracks,
             addonSubtitles = sessionAddonSubtitles,
@@ -129,6 +145,7 @@ internal fun SubtitleSelectionOverlay(
             secondaryPreferredLanguage = sessionSecondaryPreferredLanguage,
             showOnlyPreferredLanguages = sessionShowOnlyPreferredLanguages,
             currentLanguageKey = sessionSelectedSubtitleLanguageKey,
+            mergeSpanish = sessionMergeSpanish,
             noneLabel = noneLabel,
             unknownLabel = unknownLabel
         )
@@ -158,7 +175,8 @@ internal fun SubtitleSelectionOverlay(
             installedAddonOrder = sessionInstalledSubtitleAddonOrder,
             selectedOptionId = activeSelectedOptionId,
             builtInLabel = builtInLabel,
-            forcedLabel = forcedLabel
+            forcedLabel = forcedLabel,
+            mergeSpanish = sessionMergeSpanish
         )
     }
 
@@ -185,7 +203,8 @@ internal fun SubtitleSelectionOverlay(
         selectedOptionId,
         sessionInternalTracks,
         sessionAddonSubtitles,
-        sessionInstalledSubtitleAddonOrder
+        sessionInstalledSubtitleAddonOrder,
+        sessionMergeSpanish
     ) {
         buildSessionOptions(selectedLanguageKey, selectedOptionId)
     }
@@ -1785,7 +1804,7 @@ private fun preferredVisibleStartIndex(targetIndex: Int): Int {
     return (targetIndex - 1).coerceAtLeast(0)
 }
 
-private data class SubtitleLanguageRailItem(
+internal data class SubtitleLanguageRailItem(
     val key: String,
     val label: String,
     val count: Int
@@ -1807,32 +1826,40 @@ private data class SubtitleOptionRailItem(
     val addonSubtitle: Subtitle? = null
 )
 
-private fun buildSubtitleLanguageRailItems(
+internal fun buildSubtitleLanguageRailItems(
     internalTracks: List<TrackInfo>,
     addonSubtitles: List<Subtitle>,
     preferredLanguage: String,
     secondaryPreferredLanguage: String?,
     showOnlyPreferredLanguages: Boolean,
     currentLanguageKey: String,
+    mergeSpanish: Boolean,
     noneLabel: String,
     unknownLabel: String
 ): List<SubtitleLanguageRailItem> {
+    val visibleTargets = SubtitleVisibilityPolicy.visibleSubtitleTargets(
+        showOnly = showOnlyPreferredLanguages,
+        preferred = preferredLanguage,
+        secondary = secondaryPreferredLanguage
+    )
+
     val counts = linkedMapOf<String, Int>()
     internalTracks.forEach { track ->
-        val key = normalizeOverlayLanguageKeyForTrack(track)
+        val key = normalizeOverlayLanguageKeyForTrack(track, mergeSpanish)
         counts[key] = (counts[key] ?: 0) + 1
     }
     addonSubtitles.forEach { subtitle ->
-        val key = normalizeOverlayLanguageKey(subtitle.lang)
+        val key = normalizeOverlayLanguageKey(subtitle.lang, mergeSpanish)
         counts[key] = (counts[key] ?: 0) + 1
     }
 
     val preferredOrder = preferredOverlayLanguageOrder(
         preferredLanguage = preferredLanguage,
-        secondaryPreferredLanguage = secondaryPreferredLanguage
+        secondaryPreferredLanguage = secondaryPreferredLanguage,
+        mergeSpanish = mergeSpanish
     )
 
-    val languageEntries = if (showOnlyPreferredLanguages) {
+    val languageEntries = if (visibleTargets != null) {
         val preferredKeys = preferredOrder.toSet()
         counts.entries.filter { entry ->
             entry.key in preferredKeys || entry.key == currentLanguageKey
@@ -1870,13 +1897,14 @@ private fun buildSubtitleLanguageRailItems(
 
 private fun preferredOverlayLanguageOrder(
     preferredLanguage: String,
-    secondaryPreferredLanguage: String?
+    secondaryPreferredLanguage: String?,
+    mergeSpanish: Boolean
 ): List<String> {
     fun toOverlayLanguageKey(language: String?): String? {
         if (language.isNullOrBlank()) return null
         val normalized = PlayerSubtitleUtils.normalizeLanguageCode(language)
         if (normalized == "none" || normalized == SUBTITLE_LANGUAGE_FORCED) return null
-        return normalizeOverlayLanguageKey(language)
+        return normalizeOverlayLanguageKey(language, mergeSpanish)
             .takeUnless { it == SubtitleUnknownLanguageKey }
     }
 
@@ -1893,7 +1921,8 @@ private fun buildSubtitleOptionRailItems(
     installedAddonOrder: List<String>,
     selectedOptionId: String?,
     builtInLabel: String,
-    forcedLabel: String
+    forcedLabel: String,
+    mergeSpanish: Boolean
 ): List<SubtitleOptionRailItem> {
     if (selectedLanguageKey == SubtitleOffLanguageKey) return emptyList()
 
@@ -1916,15 +1945,17 @@ private fun buildSubtitleOptionRailItems(
     }
 
     val matchingAddonSubtitles = addonSubtitles
-        .filter { normalizeOverlayLanguageKey(it.lang) == selectedLanguageKey }
+        .filter { normalizeOverlayLanguageKey(it.lang, mergeSpanish) == selectedLanguageKey }
         .distinctBy { addonSubtitleOptionId(it) }
 
     val streamProvidedItems = matchingAddonSubtitles
         .filter { it.isStreamProvided }
+        .sortedWith(subtitleOptionOrdering(selectedLanguageKey))
         .map(::toAddonItem)
 
     val internalItems = internalTracks
-        .filter { normalizeOverlayLanguageKeyForTrack(it) == selectedLanguageKey }
+        .filter { normalizeOverlayLanguageKeyForTrack(it, mergeSpanish) == selectedLanguageKey }
+        .sortedWith(internalTrackOptionOrdering(selectedLanguageKey))
         .map { track ->
             SubtitleOptionRailItem(
                 id = "internal:${track.index}",
@@ -1945,6 +1976,7 @@ private fun buildSubtitleOptionRailItems(
         .withIndex()
         .sortedWith(
             compareBy(
+                { (_, subtitle) -> spanishVariantRankForOrdering(selectedLanguageKey, subtitle) },
                 { (_, subtitle) -> addonOrderMap[subtitle.addonName] ?: Int.MAX_VALUE },
                 { (index, _) -> index }
             )
@@ -1957,16 +1989,17 @@ private fun buildSubtitleOptionRailItems(
 private fun selectedSubtitleLanguageKey(
     internalTracks: List<TrackInfo>,
     selectedInternalIndex: Int,
-    selectedAddonSubtitle: Subtitle?
+    selectedAddonSubtitle: Subtitle?,
+    mergeSpanish: Boolean
 ): String {
-    val selectedAddonKey = selectedAddonSubtitle?.let { normalizeOverlayLanguageKey(it.lang) }
+    val selectedAddonKey = selectedAddonSubtitle?.let { normalizeOverlayLanguageKey(it.lang, mergeSpanish) }
     if (selectedAddonKey != null) return selectedAddonKey
 
     val selectedInternalKey = internalTracks
         .firstOrNull { it.index == selectedInternalIndex }
-        ?.let { normalizeOverlayLanguageKeyForTrack(it) }
+        ?.let { normalizeOverlayLanguageKeyForTrack(it, mergeSpanish) }
         ?: internalTracks.firstOrNull { it.isSelected }
-            ?.let { normalizeOverlayLanguageKeyForTrack(it) }
+            ?.let { normalizeOverlayLanguageKeyForTrack(it, mergeSpanish) }
     if (selectedInternalKey != null) return selectedInternalKey
 
     return SubtitleOffLanguageKey
@@ -2008,9 +2041,10 @@ private fun streamProvidedSubtitleTitle(subtitle: Subtitle): String {
     return subtitle.lang
 }
 
-private fun normalizeOverlayLanguageKey(language: String?): String {
+private fun normalizeOverlayLanguageKey(language: String?, mergeSpanish: Boolean): String {
     if (language.isNullOrBlank()) return SubtitleUnknownLanguageKey
     val normalized = PlayerSubtitleUtils.normalizeLanguageCode(language)
+    if (mergeSpanish && normalized == "es-419") return "es"
     return when (normalized) {
         "pt-br", "es-419" -> normalized
         else -> normalized
@@ -2025,12 +2059,13 @@ private fun normalizeOverlayLanguageKey(language: String?): String {
  * to detect regional accents (e.g. Brazilian Portuguese, Latin American Spanish)
  * even when the language field is generic ("por", "spa").
  */
-private fun normalizeOverlayLanguageKeyForTrack(track: TrackInfo): String {
+private fun normalizeOverlayLanguageKeyForTrack(track: TrackInfo, mergeSpanish: Boolean): String {
     val variant = PlayerSubtitleUtils.detectTrackLanguageVariant(
         language = track.language,
         name = track.name,
         trackId = track.trackId
     )
+    if (mergeSpanish && variant == "es-419") return "es"
     return when (variant) {
         "pt-br", "es-419" -> variant
         else -> variant
@@ -2038,6 +2073,23 @@ private fun normalizeOverlayLanguageKeyForTrack(track: TrackInfo): String {
             .substringBefore('_')
             .ifBlank { SubtitleUnknownLanguageKey }
     }
+}
+
+private fun subtitleOptionOrdering(selectedLanguageKey: String): Comparator<Subtitle> =
+    compareBy { spanishVariantRankForOrdering(selectedLanguageKey, it) }
+
+private fun internalTrackOptionOrdering(selectedLanguageKey: String): Comparator<TrackInfo> =
+    compareBy { spanishVariantRankForOrdering(selectedLanguageKey, it) }
+
+private fun spanishVariantRankForOrdering(selectedLanguageKey: String, subtitle: Subtitle): Int {
+    if (selectedLanguageKey != "es") return 0
+    return if (PlayerSubtitleUtils.normalizeLanguageCode(subtitle.lang) == "es-419") 0 else 1
+}
+
+private fun spanishVariantRankForOrdering(selectedLanguageKey: String, track: TrackInfo): Int {
+    if (selectedLanguageKey != "es") return 0
+    val variant = PlayerSubtitleUtils.detectTrackLanguageVariant(track.language, track.name, track.trackId)
+    return if (variant == "es-419") 0 else 1
 }
 
 private fun subtitleLanguageLabel(key: String, unknownLabel: String): String {

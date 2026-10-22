@@ -108,6 +108,30 @@ internal object PlayerSubtitleUtils {
     }
 
     /**
+     * Collapses regional Spanish variants into their shared family key so that
+     * generic "es"/"spa" and "es-419"/"spl" subtitles can be surfaced together.
+     * Every other language (including pt vs pt-br) keeps its distinct key.
+     */
+    fun languageFamilyKey(language: String?): String {
+        if (language.isNullOrBlank()) return ""
+        val normalized = normalizeLanguageCode(language)
+        return if (normalized == "es-419") "es" else normalized
+    }
+
+    /**
+     * Loose, family-level match used only for visibility filtering (not for
+     * ordering). Treats Spanish regional variants as equivalent while remaining
+     * strict for everything else.
+     */
+    fun matchesLanguageFamily(language: String?, target: String?): Boolean {
+        if (language.isNullOrBlank() || target.isNullOrBlank()) return false
+        val languageFamily = languageFamilyKey(language)
+        val targetFamily = languageFamilyKey(target)
+        if (languageFamily.isEmpty() || targetFamily.isEmpty()) return false
+        return languageFamily == targetFamily
+    }
+
+    /**
      * Detects the regional variant of an embedded subtitle track by inspecting
      * its name, language, and trackId fields. Returns a normalized language key
      * that preserves the accent (e.g. "pt-br", "es-419") when detectable,

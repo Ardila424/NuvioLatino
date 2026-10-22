@@ -227,41 +227,15 @@ internal fun PlayerRuntimeController.filterToVisibleAddonSubtitles(
     subtitles: List<Subtitle>
 ): List<Subtitle> {
     val style = _uiState.value.subtitleStyle
-    if (!style.showOnlyPreferredLanguages) return subtitles
-
-    val preferredTargets = when (PlayerSubtitleUtils.normalizeLanguageCode(style.preferredLanguage)) {
-        "none" -> listOfNotNull(
-            style.secondaryPreferredLanguage?.takeIf { it.isNotBlank() },
-            if (style.useForcedSubtitles) {
-                selectedAudioTrackForSubtitleMatching(_uiState.value)
-                    ?.takeIf { selectedAudioMatchesResolvedPreferredAudio(it) }
-                    ?.let { selectedAudioLanguageTarget(it) }
-            } else {
-                null
-            }
-        )
-        else -> listOfNotNull(
-            style.preferredLanguage,
-            style.secondaryPreferredLanguage?.takeIf { it.isNotBlank() }
-        )
-    }.map { PlayerSubtitleUtils.normalizeLanguageCode(it) }
-        .distinct()
-
-    if (preferredTargets.isEmpty()) {
-        return if (
-            style.useForcedSubtitles &&
-            PlayerSubtitleUtils.normalizeLanguageCode(style.preferredLanguage) == "none" &&
-            selectedAudioTrackForSubtitleMatching(_uiState.value) == null
-        ) {
-            subtitles
-        } else {
-            emptyList()
-        }
-    }
+    val targets = SubtitleVisibilityPolicy.visibleSubtitleTargets(
+        showOnly = style.showOnlyPreferredLanguages,
+        preferred = style.preferredLanguage,
+        secondary = style.secondaryPreferredLanguage
+    ) ?: return subtitles
 
     return subtitles.filter { subtitle ->
-        preferredTargets.any { target ->
-            PlayerSubtitleUtils.matchesLanguageCode(subtitle.lang, target)
+        targets.any { target ->
+            PlayerSubtitleUtils.matchesLanguageFamily(subtitle.lang, target)
         }
     }
 }

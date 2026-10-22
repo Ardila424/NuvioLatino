@@ -1652,9 +1652,13 @@ internal fun PlayerRuntimeController.tryAutoSelectPreferredSubtitleFromAvailable
             else -> null
         }
         val isPrimarySatisfied = primaryTarget != null && currentSelectedLang != null &&
-            PlayerSubtitleUtils.matchesLanguageCode(currentSelectedLang, primaryTarget)
+            (PlayerSubtitleUtils.matchesLanguageCode(currentSelectedLang, primaryTarget) ||
+                PlayerSubtitleUtils.matchesLanguageFamily(currentSelectedLang, primaryTarget))
         val hasBetterAddonMatch = !isPrimarySatisfied && primaryTarget != null &&
-            state.addonSubtitles.any { PlayerSubtitleUtils.matchesLanguageCode(it.lang, primaryTarget) }
+            state.addonSubtitles.any {
+                PlayerSubtitleUtils.matchesLanguageCode(it.lang, primaryTarget) ||
+                    PlayerSubtitleUtils.matchesLanguageFamily(it.lang, primaryTarget)
+            }
 
         if (!hasBetterAddonMatch) return
     }
@@ -1785,19 +1789,57 @@ internal fun PlayerRuntimeController.tryAutoSelectPreferredSubtitleFromAvailable
             selectAddonSubtitle(forcedAddonMatch)
             return
         }
+        // No forced subtitle exists for the target language. Fall back to normal
+        // (non-forced) subtitle selection instead of disabling subtitles entirely.
         autoSubtitleSelected = true
-        Log.d(PlayerRuntimeController.TAG, "AUTO_SUB stop: forced subtitles requested but no forced match found")
-        disableSubtitles()
+        Log.d(PlayerRuntimeController.TAG, "AUTO_SUB forced fallback: no forced match, trying normal subtitles")
+        val fallbackInternalIndex = findBestInternalSubtitleTrackIndex(
+            subtitleTracks = state.subtitleTracks,
+            targets = preferredTargets,
+            forcedOnly = false,
+            normalOnly = true,
+            selectedAudioTrack = selectedAudioTrack
+        )
+        if (fallbackInternalIndex >= 0 && hasScannedTextTracksOnce) {
+            Log.d(PlayerRuntimeController.TAG, "AUTO_SUB forced fallback: pick internal index=$fallbackInternalIndex")
+            selectSubtitleTrack(fallbackInternalIndex)
+            _uiState.update { it.copy(selectedSubtitleTrackIndex = fallbackInternalIndex, selectedAddonSubtitle = null) }
+            return
+        }
+        val fallbackAddonMatch = run {
+            for (target in preferredTargets) {
+                val match = state.addonSubtitles.firstOrNull { subtitle ->
+                    !addonSubtitleIsForced(subtitle) &&
+                        (PlayerSubtitleUtils.matchesLanguageCode(subtitle.lang, target) ||
+                            PlayerSubtitleUtils.matchesLanguageFamily(subtitle.lang, target))
+                }
+                if (match != null) return@run match
+            }
+            null
+        }
+        if (fallbackAddonMatch != null) {
+            Log.d(PlayerRuntimeController.TAG, "AUTO_SUB forced fallback: pick addon lang=${fallbackAddonMatch.lang}")
+            selectAddonSubtitle(fallbackAddonMatch)
+            maybeRunAutomaticSubtitleSync(fallbackAddonMatch)
+        } else {
+            Log.d(PlayerRuntimeController.TAG, "AUTO_SUB forced fallback: no normal subtitle match either")
+            disableSubtitles()
+        }
         return
     }
 
     val selectedAddon = state.selectedAddonSubtitle
     val selectedAddonMatchesTarget = selectedAddon != null &&
         (!useForcedSubtitles || !addonSubtitleIsForced(selectedAddon)) &&
-        targets.any { target -> PlayerSubtitleUtils.matchesLanguageCode(selectedAddon.lang, target) }
+        targets.any { target ->
+            PlayerSubtitleUtils.matchesLanguageCode(selectedAddon.lang, target) ||
+                PlayerSubtitleUtils.matchesLanguageFamily(selectedAddon.lang, target)
+        }
     if (selectedAddonMatchesTarget) {
         val matchingSelectedAddon = selectedAddon ?: return
         val selectedMatchesPrimary = PlayerSubtitleUtils.matchesLanguageCode(
+            matchingSelectedAddon.lang, targets.first()
+        ) || PlayerSubtitleUtils.matchesLanguageFamily(
             matchingSelectedAddon.lang, targets.first()
         )
         if (selectedMatchesPrimary) {
@@ -1840,6 +1882,20 @@ internal fun PlayerRuntimeController.tryAutoSelectPreferredSubtitleFromAvailable
                     PlayerRuntimeController.TAG,
                     "AUTO_SUB addon fallback: target=$target matched addon lang=${match.lang} id=${match.id} " +
                             "(addons=${state.addonSubtitles.size}, targets=$targets)"
+                )
+                return@run match
+            }
+        }
+        // Family fallback: accepts regional variants (e.g. generic "spa" for "es-419").
+        for (target in targets) {
+            val match = state.addonSubtitles.firstOrNull { subtitle ->
+                (!useForcedSubtitles || !addonSubtitleIsForced(subtitle)) &&
+                    PlayerSubtitleUtils.matchesLanguageFamily(subtitle.lang, target)
+            }
+            if (match != null) {
+                Log.d(
+                    PlayerRuntimeController.TAG,
+                    "AUTO_SUB addon fallback (family): target=$target matched addon lang=${match.lang} id=${match.id}"
                 )
                 return@run match
             }

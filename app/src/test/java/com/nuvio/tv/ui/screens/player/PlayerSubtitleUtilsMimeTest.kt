@@ -2,6 +2,7 @@ package com.nuvio.tv.ui.screens.player
 
 import androidx.media3.common.MimeTypes
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -114,5 +115,44 @@ class PlayerSubtitleUtilsMimeTest {
         assertEquals("es-419", PlayerSubtitleUtils.normalizeLanguageCode("spl"))
         assertTrue(PlayerSubtitleUtils.matchesLanguageCode("spn", "es"))
         assertTrue(PlayerSubtitleUtils.matchesLanguageCode("SPN", "es"))
+    }
+
+    @Test
+    fun languageFamilyKey_collapsesSpanishVariants() {
+        assertEquals("es", PlayerSubtitleUtils.languageFamilyKey("es-419"))
+        assertEquals("es", PlayerSubtitleUtils.languageFamilyKey("spa"))
+        assertEquals("es", PlayerSubtitleUtils.languageFamilyKey("Spanish"))
+        assertEquals("es", PlayerSubtitleUtils.languageFamilyKey("spl"))
+        assertEquals("es", PlayerSubtitleUtils.languageFamilyKey("es"))
+        assertEquals("pt-br", PlayerSubtitleUtils.languageFamilyKey("pt-br"))
+        assertEquals("pt", PlayerSubtitleUtils.languageFamilyKey("por"))
+        assertEquals("en", PlayerSubtitleUtils.languageFamilyKey("eng"))
+        assertEquals("", PlayerSubtitleUtils.languageFamilyKey(null))
+        assertEquals("", PlayerSubtitleUtils.languageFamilyKey("   "))
+    }
+
+    @Test
+    fun matchesLanguageFamily_treatsSpanishAsOneFamily() {
+        assertTrue(PlayerSubtitleUtils.matchesLanguageFamily("spa", "es-419"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageFamily("spl", "es"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageFamily("es-419", "es"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageFamily("es", "es-419"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily("es", "en"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily("spa", "eng"))
+    }
+
+    @Test
+    fun matchesLanguageFamily_keepsPortugueseAndEnglishDistinct() {
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily("pt-br", "pt"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily("en-gb", "en"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily(null, "es"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageFamily("es", null))
+    }
+
+    @Test
+    fun matchesLanguageCode_remainsStrictForSpanishVariants() {
+        assertFalse(PlayerSubtitleUtils.matchesLanguageCode("spa", "es-419"))
+        assertFalse(PlayerSubtitleUtils.matchesLanguageCode("es-419", "es"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageCode("spa", "es"))
     }
 }

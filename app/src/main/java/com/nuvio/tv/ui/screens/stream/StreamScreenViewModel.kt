@@ -2184,10 +2184,11 @@ class StreamScreenViewModel @Inject constructor(
                 StreamSidecarSubtitles.forUrl(playbackUrlFor(playbackInfo).orEmpty()) + addonSubtitles
             ).distinctBy { "${it.id}|${it.url}" }
 
-            // Filter to preferred languages only
+            // Filter to preferred languages only, treating Spanish regional
+            // variants (es / es-419 / spa / spl) as a single family.
             val filtered = allSubtitles.filter { subtitle ->
                 preferredLanguages.any { lang ->
-                    com.nuvio.tv.ui.screens.player.PlayerSubtitleUtils.matchesLanguageCode(
+                    com.nuvio.tv.ui.screens.player.PlayerSubtitleUtils.matchesLanguageFamily(
                         subtitle.lang, lang
                     )
                 }
