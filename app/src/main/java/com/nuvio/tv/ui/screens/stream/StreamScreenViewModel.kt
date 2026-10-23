@@ -371,28 +371,35 @@ class StreamScreenViewModel @Inject constructor(
                 .filter { NativeStreamBadgeDetector.isRemux(it) }
                 .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
                 .take(BATCH_PROBE_COUNT)
-            var stoppedByRateLimit = false
-            for (stream in candidates) {
-                if (stoppedByRateLimit) break
-                ensureActive()
-                val key = stream.badgeMergeKey()
-                if (probedStreamKeys.contains(key)) continue
-                batchProbeSemaphore.withPermit {
-                    ensureActive()
-                    when (val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)) {
-                        is StreamAudioProbeResult.Success -> {
-                            probedStreamKeys.add(key)
-                            applyProbedStreamResult(stream, result)
-                        }
-                        StreamAudioProbeResult.Inconclusive -> {
-                            probedStreamKeys.add(key)
-                        }
-                        is StreamAudioProbeResult.RateLimited -> {
-                            Log.d(
-                                TAG,
-                                "Batch probe paused: HTTP ${result.httpCode} (cooldown ${result.retryAfterMs}ms)"
-                            )
-                            stoppedByRateLimit = true
+
+            // Real concurrency: launch the candidates and let the semaphore cap
+            // in-flight probes at BATCH_PROBE_CONCURRENCY.
+            val stoppedByRateLimit = java.util.concurrent.atomic.AtomicBoolean(false)
+            kotlinx.coroutines.coroutineScope {
+                candidates.forEach { stream ->
+                    launch {
+                        if (stoppedByRateLimit.get()) return@launch
+                        val key = stream.badgeMergeKey()
+                        if (probedStreamKeys.contains(key)) return@launch
+                        batchProbeSemaphore.withPermit {
+                            if (stoppedByRateLimit.get()) return@withPermit
+                            ensureActive()
+                            when (val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)) {
+                                is StreamAudioProbeResult.Success -> {
+                                    probedStreamKeys.add(key)
+                                    applyProbedStreamResult(stream, result)
+                                }
+                                StreamAudioProbeResult.Inconclusive -> {
+                                    probedStreamKeys.add(key)
+                                }
+                                is StreamAudioProbeResult.RateLimited -> {
+                                    Log.d(
+                                        TAG,
+                                        "Batch probe paused: HTTP ${result.httpCode} (cooldown ${result.retryAfterMs}ms)"
+                                    )
+                                    stoppedByRateLimit.set(true)
+                                }
+                            }
                         }
                     }
                 }
