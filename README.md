@@ -96,6 +96,22 @@ Instala el APK y agrega tus propias fuentes/addons. Nuvio Latino se instala **ju
 
 ---
 
+## Addons recomendados
+
+Nuvio Latino no incluye addons. Estos son los que mejores resultados me han dado para encontrar audio latino. **En mi caso uso TorBox** como servicio debrid.
+
+| Addon | Por qué | Instalar |
+|---|---|---|
+| **Torrentio** | Muchas fuentes y filtros; permite configurar TorBox. | [Configurar Torrentio](https://torrentio.strem.fun/configure) |
+| **LatinoBrid** | Enfocado en español latino; compatible con TorBox. | [Configurar LatinoBrid](https://latinobrid.stremx.net/configure) |
+| **Duck Streams** | Configuración de AIOStreams con muchos scrapers; compatible con TorBox. | [Abrir Duck Streams](https://duckkota.gitlab.io/stremio-tools/) |
+
+**Cómo instalarlos en Nuvio Latino:** Abre `Ajustes → Addons → Agregar addon`, pega el enlace que te da la página de configuración (termina en `manifest.json`) y confirma.
+
+> Son proyectos de terceros: no están incluidos en Nuvio Latino y no estamos afiliados a ellos. Ten a mano tu cuenta/API key de TorBox si vas a usar debrid. Úsalos solo donde el contenido y el acceso estén permitidos.
+
+---
+
 ## Importante
 
 - **No incluye addons, scrapers ni contenido.** Todo depende de las fuentes que tú instales.
