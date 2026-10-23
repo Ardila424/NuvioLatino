@@ -91,6 +91,16 @@ class StreamAudioProbeServiceTest {
     }
 
     @Test
+    fun `evaluateAudioTracks recognizes MX marker on Spanish track`() {
+        val tracks = listOf(
+            ProbeAudioTrack(language = "spa", languageBcp47 = "", name = "BTM DDP5.1 MX", codec = "A_EAC3")
+        )
+        val result = newService().evaluateAudioTracks(tracks)
+        assertTrue(result is StreamAudioProbeResult.Success)
+        assertTrue((result as StreamAudioProbeResult.Success).hasLatino)
+    }
+
+    @Test
     fun `evaluateAudioTracks does not read LA or EU from non-Spanish tracks`() {
         val tracks = listOf(
             ProbeAudioTrack(language = "eng", languageBcp47 = "en", name = "LA Commentary", codec = "A_AAC"),

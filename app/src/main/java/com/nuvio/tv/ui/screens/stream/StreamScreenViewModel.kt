@@ -26,6 +26,7 @@ import com.nuvio.tv.core.tracking.TrackingScrobbleEvent
 import com.nuvio.tv.core.tracking.buildTrackingMediaReference
 import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.core.util.parseRuntimeMinutes
+import com.nuvio.tv.core.util.withAppLocale
 import com.nuvio.tv.core.streams.StreamAudioProbeResult
 import com.nuvio.tv.core.streams.StreamAudioProbeService
 import com.nuvio.tv.core.tmdb.TmdbService
@@ -166,6 +167,7 @@ class StreamScreenViewModel @Inject constructor(
     private val episodeName: String? = savedStateHandle.getOptionalString("episodeName")
     private val runtime: Int? = savedStateHandle.get<String>("runtime")?.toIntOrNull()
     private val genres: String? = savedStateHandle.getOptionalString("genres")
+        ?.let { localizeGenreString(context, it) }
     private val year: String? = savedStateHandle.getOptionalString("year")
     private val contentId: String? = savedStateHandle.getOptionalString("contentId")
     private val contentName: String? = savedStateHandle.getOptionalString("contentName")
@@ -338,7 +340,10 @@ class StreamScreenViewModel @Inject constructor(
     private fun onStreamFocused(stream: Stream) {
         streamFocusProbeJob?.cancel()
         if (!latinoFeaturesEnabled) return
-        if (!NativeStreamBadgeDetector.isRemux(stream)) return
+        // The batch stays REMUX-only to protect debrid quota, but a focused
+        // cached source can be verified on its own. This is what upgrades a
+        // 1080p "LATINO ?" card to "LATINO ✓" when its audio track names say
+        // Latino / LAT / MX.
         if (!stream.isSafeToProbe()) return
         val key = stream.badgeMergeKey()
         if (probedStreamKeys.contains(key)) return
@@ -1483,9 +1488,9 @@ class StreamScreenViewModel @Inject constructor(
 
             val meta = result.data
             playbackMetaVideos = meta.videos
-            if (!requiresMetadataLookup) return@launch
             val metaGenres = meta.genres.takeIf { it.isNotEmpty() }
                 ?.joinToString(" • ") { localizedGenreLabel(context, it) }
+            if (!requiresMetadataLookup && metaGenres == null) return@launch
             val metaYear = meta.releaseInfo
                 ?.substringBefore("-")
                 ?.takeIf { it.isNotBlank() }
@@ -1495,7 +1500,7 @@ class StreamScreenViewModel @Inject constructor(
                 val posterValue = state.poster ?: meta.poster
                 val backdropValue = state.backdrop ?: meta.backdropUrl
                 val logoValue = state.logo ?: meta.logo
-                val genresValue = state.genres?.takeIf { it.isNotBlank() } ?: metaGenres
+                val genresValue = metaGenres ?: state.genres?.takeIf { it.isNotBlank() }
                 val yearValue = state.year?.takeIf { it.isNotBlank() } ?: metaYear
                 val runtimeValue = state.runtime ?: metaRuntime
                 if (state.poster == posterValue &&
@@ -2526,6 +2531,12 @@ private fun playbackUrlFor(playbackInfo: StreamPlaybackInfo): String? =
 private fun Stream.isReadyForDebridPreparation(): Boolean =
     getStreamUrl() == null &&
         (isDirectDebrid() || (needsLocalDebridResolve() && debridCacheStatus?.state == StreamDebridCacheState.CACHED))
+
+private fun localizeGenreString(context: android.content.Context, value: String): String =
+    value.split('•', ',')
+        .map { localizedGenreLabel(context, it.trim()) }
+        .filter { it.isNotBlank() }
+        .joinToString(" • ")
 
 private fun formatSpeed(context: android.content.Context, bytesPerSec: Long): String {
     return when {

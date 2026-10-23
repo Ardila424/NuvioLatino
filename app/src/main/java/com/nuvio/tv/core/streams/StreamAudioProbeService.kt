@@ -376,7 +376,7 @@ class StreamAudioProbeService @Inject constructor(
         // e.g. "BTM DDP5.1 LA" (Latin America) and "BTM DDP5.1 EU" (Europe).
         // Only use these markers when the track itself is Spanish so an English
         // track named "LA" cannot be misclassified.
-        val latinoMarkerRegex = Regex("""(?i)(^|[\s._-])(la|lat|latam|latin|latino|latina|latinoamerica|latinoamérica|es-419|es-005)([\s._-]|$)""")
+        val latinoMarkerRegex = Regex("""(?i)(^|[\s._-])(la|lat|latam|latin|latino|latina|latinoamerica|latinoamérica|mx|mexico|méxico|arg|es-419|es-005)([\s._-]|$)""")
         val castellanoMarkerRegex = Regex("""(?i)(^|[\s._-])(eu|esp|españa|espana|spain|castellano|castilian)([\s._-]|$)""")
 
         var hasLatino = false

@@ -135,6 +135,7 @@ class ThemeSettingsViewModelTest {
         val members = mockk<MemberAccessRepository> { every { access } returns this@ThemeSettingsViewModelTest.access }
         val icons = mockk<AppIconManager> { every { state } returns MutableStateFlow(AppIconSettingsState()) }
         val tmdbStore = mockk<com.nuvio.tv.data.local.TmdbSettingsDataStore>(relaxed = true)
-        return ThemeSettingsViewModel(store, members, icons, tmdbStore)
+        val cwCache = mockk<com.nuvio.tv.data.local.ContinueWatchingEnrichmentCache>(relaxed = true)
+        return ThemeSettingsViewModel(store, members, icons, tmdbStore, cwCache)
     }
 }

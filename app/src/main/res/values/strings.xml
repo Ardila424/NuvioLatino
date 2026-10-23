@@ -1783,7 +1783,7 @@
     <string name="stream_sort_size">Size</string>
     <string name="stream_toolbar_source">Source</string>
     <string name="stream_toolbar_sort">Sort</string>
-    <string name="stream_filter_latino_hint">Checked %1$d cached REMUX of %2$d sources · %3$d have verified Latino.</string>
+    <string name="stream_filter_latino_hint">Checked %1$d of %2$d sources · %3$d have verified Latino.</string>
     <string name="stream_filter_verify_more">Verify more</string>
 
     <string name="stream_retry">Retry</string>

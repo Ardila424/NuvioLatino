@@ -690,7 +690,7 @@ private fun LeftContentSection(
         }
     }
     val infoText = remember(genres, year) {
-        listOfNotNull(genres, year).joinToString(" ΓÇó ")
+        listOfNotNull(genres, year).joinToString(" • ")
     }
     Box(
         modifier = modifier.padding(start = NuvioTheme.spacing.xxxl, end = NuvioTheme.spacing.xl),
