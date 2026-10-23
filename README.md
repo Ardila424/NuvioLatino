@@ -6,66 +6,93 @@
 
 **Nuvio TV, optimizado para quien busca audio latino.**
 
-*Una versión no oficial de Nuvio TV que te dice, antes de reproducir, cuáles fuentes tienen de verdad audio en español latino.*
+Una versión no oficial de Nuvio TV que te dice, antes de reproducir, cuáles fuentes tienen audio en español latino.
 
-[![Licencia: GPL-3.0](https://img.shields.io/badge/licencia-GPL--3.0-blue.svg)](./LICENSE)
+[![Última versión](https://img.shields.io/github/v/release/Ardila424/NuvioLatino?label=versi%C3%B3n&color=7c3aed&style=flat-square)](https://github.com/Ardila424/NuvioLatino/releases/latest)
+[![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=flat-square)](./LICENSE)
+[![Android TV](https://img.shields.io/badge/Android%20TV-24%2B-3ddc84?style=flat-square)](#instalar)
+
+<br />
+
+<a href="https://github.com/Ardila424/NuvioLatino/releases/latest">
+  <img src="https://img.shields.io/badge/Descargar-APK-7c3aed?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" />
+</a>
 
 </div>
 
 ---
 
-## ¿Qué es?
+## Capturas
 
-Nuvio Latino es un fork comunitario y no oficial de Nuvio TV. Su objetivo es simple: **que no tengas que abrir fuente por fuente para descubrir si el audio es latino**.
+<table>
+  <tr>
+    <td width="50%">
+      <img src="assets/screenshots/streams-es.png" alt="Lista de fuentes en español con Solo Latino y audio verificado" />
+    </td>
+    <td width="50%">
+      <img src="assets/screenshots/streams-en.png" alt="Lista de fuentes en inglés con insignias técnicas" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Español: Solo Latino, audio confirmado y calidad.</sub></td>
+    <td align="center"><sub>English: Nuvio normal, con insignias técnicas.</sub></td>
+  </tr>
+</table>
 
-La app revisa la información real del archivo (no solo el nombre) y te muestra qué fuentes tienen audio latino confirmado, cuáles probablemente sí, y cuáles no.
-
-No es un competidor de Nuvio TV. Es un proyecto independiente hecho por y para la comunidad latina.
-
----
-
-## Qué incluye
-
-- **Audio latino confirmado** — verde `LATINO ✓` cuando la app pudo comprobarlo en el archivo o cuando la tarjeta lo indica claramente (`Latino`, `LAT`, `MX`, etc.).
-- **`LATINO ?`** — puede ser latino, pero no está confirmado.
-- **Filtro `Solo Latino`** — muestra solo las fuentes con latino confirmado.
-- **Orden `Mejor con Latino`** — prioriza latino y buena calidad.
-- **Insignias de calidad y audio** — `4K`, `1080p`, `DV`, `HDR10`, `ATMOS`, `DTS`, `5.1`, `7.1`, `REMUX`, tamaño y más.
-- **Insignias en el reproductor** — resolución, HDR y formato de audio de lo que estás viendo.
-- **Interfaz clara** — español para las funciones latinas; inglés para una experiencia Nuvio normal.
-- **Sin addons ni contenido incluido** — usa tus propias fuentes.
-
----
-
-## Cómo leer las tarjetas
-
-- `LATINO ✓` verde — audio latino confirmado.
-- `LATINO ?` — el nombre sugiere latino, pero no se pudo confirmar.
-- `ESPAÑOL` — hay audio en español, pero no se sabe si es latino o de España.
-- `SIN LATINO` — no se encontró español en el audio.
-
-La app **no usa subtítulos** para decidir esto: solo audio.
+<p align="center">
+  <img src="assets/screenshots/player-en.png" alt="Reproductor con insignias de calidad y audio" width="100%" />
+  <br />
+  <sub>En el reproductor ves la calidad y el audio reales de la fuente.</sub>
+</p>
 
 ---
 
-## Idioma
+## Qué hace
 
-- Si pones la app en **español**, aparecen `Solo Latino`, `Mejor con Latino` y las insignias latinas.
-- Si la pones en **inglés**, la app se comporta como Nuvio normal: se ocultan las funciones latinas y se mantienen las insignias de calidad y audio.
-- El idioma del contenido (títulos, descripciones, géneros) sigue el idioma de la app. En TMDb, usa **“Igual que la app”** para que se mantenga sincronizado.
+- **Te dice si el audio es latino** sin abrir fuente por fuente.
+- **Filtra y ordena** para que las mejores fuentes aparezcan primero.
+- **Muestra la calidad** de cada fuente: 4K, HDR, Atmos, DTS, 5.1 y más.
+- **Cambia con el idioma de la app**: español activa las funciones latinas; inglés deja una experiencia Nuvio normal.
+
+---
+
+## Insignias
+
+| Insignia | Qué significa |
+|---|---|
+| `LATINO ✓` | Audio latino confirmado. Verde sólido: comprobado en el archivo. Verde con borde: la tarjeta lo indica claramente. |
+| `LATINO ?` | Puede ser latino, pero no está confirmado. |
+| `ESPAÑOL` | Hay audio en español, pero no se sabe si es latino o de España. |
+| `SIN LATINO` | No se encontró español en el audio. |
+
+Solo se tiene en cuenta el **audio**, nunca los subtítulos.
+
+---
+
+## Español e inglés
+
+| | Español | English |
+|---|---|---|
+| `Solo Latino` y `Mejor con Latino` | Sí | No |
+| Insignias latinas | Sí | No |
+| Insignias de calidad y audio | Sí | Sí |
+| Comportamiento | Enfoque latino | Nuvio normal |
+
+Los títulos, descripciones y géneros siguen el idioma de la app. En TMDb, usa **“Igual que la app”** para mantenerlos sincronizados.
 
 ---
 
 ## Instalar
 
-1. Descarga el APK desde [Releases](https://github.com/Ardila424/NuvioLatino/releases).
-2. Elige el archivo según tu dispositivo:
-   - `app-full-armeabi-v7a-release.apk` → Onn, Fire TV Stick y cajas de 32 bits.
-   - `app-full-arm64-v8a-release.apk` → NVIDIA Shield, Google TV 4K y cajas de 64 bits.
-   - `app-full-universal-release.apk` → si no estás seguro.
-3. Instala el APK y agrega tus propias fuentes/addons.
+Descarga el APK desde [Releases](https://github.com/Ardila424/NuvioLatino/releases/latest).
 
-> Nuvio Latino se instala **junto a** Nuvio TV. No reemplaza tu app actual.
+| Dispositivo | Archivo |
+|---|---|
+| Onn, Fire TV Stick y cajas de 32 bits | `app-full-armeabi-v7a-release.apk` |
+| NVIDIA Shield, Google TV 4K y cajas de 64 bits | `app-full-arm64-v8a-release.apk` |
+| Si no estás seguro | `app-full-universal-release.apk` |
+
+Instala el APK y agrega tus propias fuentes/addons. Nuvio Latino se instala **junto a** Nuvio TV.
 
 ---
 
@@ -73,17 +100,21 @@ La app **no usa subtítulos** para decidir esto: solo audio.
 
 - **No incluye addons, scrapers ni contenido.** Todo depende de las fuentes que tú instales.
 - **No está afiliado ni respaldado por Nuvio TV.** No reportes problemas de esta versión en los canales oficiales.
-- Es un proyecto **GPL-3.0**. El crédito del proyecto original es de [Nuvio TV](https://github.com/NuvioMedia/NuvioTV).
-- Si quieres apoyar al proyecto original: [nuvio.tv/support](https://nuvio.tv/support).
+- Es un proyecto **GPL-3.0**. El crédito del proyecto original es de [Nuvio TV](https://github.com/NuvioMedia/NuvioTV). Si quieres apoyarlo: [nuvio.tv/support](https://nuvio.tv/support).
 
 ---
 
-## English
+<details>
+<summary><strong>English</strong></summary>
+
+<br />
 
 **Nuvio Latino** is an unofficial community fork of [Nuvio TV](https://github.com/NuvioMedia/NuvioTV) focused on Latin American Spanish audio.
 
-It shows which sources actually have Latino audio, with a clear `LATINO ✓` badge, a `Solo Latino` filter, and `Mejor con Latino` sorting. It also shows quality/audio badges like `4K`, `DV`, `HDR10`, `ATMOS`, `DTS`, `5.1` and `REMUX`.
+It shows which sources actually have Latino audio with a clear `LATINO ✓` badge, a `Solo Latino` filter, and `Mejor con Latino` sorting. Quality and audio badges such as `4K`, `DV`, `HDR10`, `ATMOS`, `DTS`, `5.1` and `REMUX` are included too.
 
 Switch the app to **English** to hide the Latino-specific filters and badges and keep a normal Nuvio experience. No add-ons or content are bundled; bring your own sources.
 
 Not affiliated with the official NuvioTV project. **GPL-3.0**, all upstream notices preserved.
+
+</details>
