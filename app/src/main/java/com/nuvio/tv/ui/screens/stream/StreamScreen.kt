@@ -103,6 +103,7 @@ import com.nuvio.tv.ui.components.P2pConsentDialog
 import com.nuvio.tv.ui.components.StreamInlineBadges
 import com.nuvio.tv.ui.components.StreamOption
 import com.nuvio.tv.ui.components.StreamOptionDialog
+import com.nuvio.tv.ui.components.StreamRefreshChip
 import com.nuvio.tv.ui.components.StreamToolbarChip
 import com.nuvio.tv.ui.components.StreamsSkeletonList
 import com.nuvio.tv.ui.components.labelRes
@@ -987,16 +988,13 @@ private fun RightStreamSection(
                         }
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    StreamToolbarChip(
-                        label = "",
-                        value = "↻",
+                    StreamRefreshChip(
                         onClick = {
                             userMovedFromFirstResult = false
                             firstResultFocusAssigned = false
                             onRefresh()
                         },
-                        focusRequester = refreshFocusRequester,
-                        showChevron = false
+                        focusRequester = refreshFocusRequester
                     )
                 }
 
@@ -1653,7 +1651,22 @@ private fun StreamCard(
                         badges = stream.badges,
                         fileSizeBytes = stream.behaviorHints?.videoSize,
                         showFileSizeBadge = showFileSizeBadges,
-                        maxVisible = 4
+                        showOverflow = !isFocused
+                    )
+                }
+
+                // The compact strip shows the four most important marks and a
+                // +N counter. When the card is focused, reveal the rest in a
+                // second line so "+N" is never a dead end.
+                if (isFocused) {
+                    StreamInlineBadges(
+                        badges = stream.badges,
+                        fileSizeBytes = stream.behaviorHints?.videoSize,
+                        showFileSizeBadge = showFileSizeBadges,
+                        maxVisible = Int.MAX_VALUE,
+                        startIndex = com.nuvio.tv.ui.components.INLINE_BADGE_LIMIT,
+                        showOverflow = false,
+                        modifier = Modifier.padding(top = NuvioTheme.spacing.xxs)
                     )
                 }
 

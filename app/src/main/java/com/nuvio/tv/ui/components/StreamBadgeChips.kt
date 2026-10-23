@@ -154,7 +154,9 @@ fun StreamInlineBadges(
     badges: List<StreamBadge>,
     fileSizeBytes: Long? = null,
     showFileSizeBadge: Boolean = false,
-    maxVisible: Int = 4,
+    maxVisible: Int = INLINE_BADGE_LIMIT,
+    startIndex: Int = 0,
+    showOverflow: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val gbTemplate = stringResource(R.string.unit_size_gb)
@@ -177,10 +179,10 @@ fun StreamInlineBadges(
     val ordered = remember(badges, sizeBadge) {
         (badges + listOfNotNull(sizeBadge)).sortedBy(::compactBadgePriority)
     }
-    if (ordered.isEmpty()) return
+    if (ordered.isEmpty() || startIndex >= ordered.size) return
 
-    val visible = ordered.take(maxVisible)
-    val overflow = ordered.size - visible.size
+    val visible = ordered.drop(startIndex).take(maxVisible)
+    val overflow = if (showOverflow && startIndex == 0) ordered.size - visible.size else 0
 
     Row(
         modifier = modifier,
@@ -193,6 +195,8 @@ fun StreamInlineBadges(
         }
     }
 }
+
+internal const val INLINE_BADGE_LIMIT = 4
 
 /** Shared compact mark: brand wordmarks, verified provenance and imported images. */
 @Composable

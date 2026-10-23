@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -126,9 +127,19 @@ fun QuickFilterChips(
 
     val internalRequesters = remember { List(5) { FocusRequester() } }
     val focusRequesters = externalFocusRequesters ?: internalRequesters
+    val listState = rememberLazyListState()
+
+    // Keep the selected chip fully visible: the row used to restore a stale
+    // scroll offset that left the first/last chip clipped against the edge.
+    LaunchedEffect(selectedFilter) {
+        listState.animateScrollToItem(
+            selectedFilter.ordinal.coerceIn(0, options.lastIndex)
+        )
+    }
 
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md),
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
         contentPadding = PaddingValues(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs),
         modifier = modifier
             .onKeyEvent { event ->

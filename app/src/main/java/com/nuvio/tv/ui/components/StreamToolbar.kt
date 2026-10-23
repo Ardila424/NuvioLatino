@@ -8,16 +8,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +44,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.nuvio.tv.ui.theme.NuvioTheme
@@ -91,7 +97,9 @@ fun StreamToolbarChip(
         scale = CardDefaults.scale(focusedScale = 1f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -121,6 +129,56 @@ fun StreamToolbarChip(
                     else NuvioTheme.colors.TextTertiary
                 )
             }
+        }
+    }
+}
+
+/** Circular refresh action for the toolbar, centred on both axes. */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun StreamRefreshChip(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(17.dp)
+
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .size(34.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { isFocused = it.isFocused },
+        colors = CardDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.08f),
+            focusedContainerColor = NuvioTheme.colors.Secondary,
+            pressedContainerColor = Color.White.copy(alpha = 0.12f)
+        ),
+        border = CardDefaults.border(
+            border = Border(
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+                shape = shape
+            ),
+            focusedBorder = Border(
+                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                shape = shape
+            )
+        ),
+        shape = CardDefaults.shape(shape = shape),
+        scale = CardDefaults.scale(focusedScale = 1f)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null,
+                tint = if (isFocused) NuvioTheme.colors.OnSecondary
+                else NuvioTheme.colors.TextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -195,6 +253,7 @@ fun StreamOptionDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .fillMaxHeight()
                                     .padding(horizontal = NuvioTheme.spacing.md),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
