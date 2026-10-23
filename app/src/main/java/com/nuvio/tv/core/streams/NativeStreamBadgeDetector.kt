@@ -91,8 +91,121 @@ object NativeStreamBadgeDetector {
             )
         }
 
+        badges += detectTechnicalBadges(stream, badges)
         return badges
     }
+
+    /**
+     * Technical marks parsed from the title/description/filename plus the
+     * addon's parsed metadata. These are *estimates* taken from the release
+     * name, not facts read from the file; the compact renderer draws them with
+     * a hollow border so they never look like a probe-verified result.
+     */
+    private fun detectTechnicalBadges(stream: Stream, existing: List<StreamBadge>): List<StreamBadge> {
+        val parsed = stream.clientResolve?.stream?.raw?.parsed
+        val text = buildString {
+            append(candidateTexts(stream).joinToString(" "))
+            append(' ')
+            append(
+                listOfNotNull(
+                    parsed?.resolution,
+                    parsed?.quality,
+                    parsed?.codec,
+                    parsed?.hdr?.joinToString(" "),
+                    parsed?.audio?.joinToString(" "),
+                    parsed?.channels?.joinToString(" ")
+                ).joinToString(" ")
+            )
+        }.lowercase()
+
+        val technical = mutableListOf<StreamBadge>()
+        fun has(pattern: Regex) = pattern.containsMatchIn(text)
+        fun add(name: String, style: String, background: String = "", foreground: String = "#FFFFFF", border: String = "") {
+            val alreadyThere = existing.any {
+                it.name == name || it.name.removePrefix("💎 ").equals(name, ignoreCase = true)
+            } || technical.any { it.name == name }
+            if (alreadyThere) return
+            technical += StreamBadge(
+                name = name,
+                tagStyle = style,
+                tagColor = background,
+                textColor = foreground,
+                borderColor = border
+            )
+        }
+
+        if (has(FOUR_K_REGEX)) {
+            add("4K", "tech-4k", "#0B0B0C", "#FFFFFF", "#FFFFFF")
+        } else if (has(FULL_HD_REGEX)) {
+            add("1080p", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+        }
+
+        if (has(DOLBY_VISION_REGEX)) add("DV", "tech-dv", "#000000", "#FFFFFF", "#FFFFFF")
+
+        when {
+            has(HDR10_PLUS_REGEX) -> add("HDR10+", "tech-hdr", "#0B0B0C", "#FFFFFF", "#FFFFFF")
+            has(HDR10_REGEX) -> add("HDR10", "tech-hdr", "#0B0B0C", "#FFFFFF", "#FFFFFF")
+            has(HDR_REGEX) -> add("HDR", "tech-hdr", "#0B0B0C", "#FFFFFF", "#6B7280")
+        }
+        if (has(HLG_REGEX)) add("HLG", "tech-hdr", "#0B0B0C", "#FFFFFF", "#6B7280")
+
+        val isAtmos = has(ATMOS_REGEX)
+        if (isAtmos) add("ATMOS", "tech-atmos", "#0B0B0C", "#FFFFFF", "#FFFFFF")
+
+        when {
+            has(DTS_X_REGEX) -> add("DTS:X", "tech-dts", "#0B0B0C", "#FFFFFF", "#6B7280")
+            has(DTS_HD_MA_REGEX) -> add("DTS-HD MA", "tech-dts", "#0B0B0C", "#FFFFFF", "#6B7280")
+            has(DTS_HD_REGEX) -> add("DTS-HD", "tech-dts", "#0B0B0C", "#FFFFFF", "#6B7280")
+            has(DTS_REGEX) -> add("DTS", "tech-dts", "#0B0B0C", "#FFFFFF", "#6B7280")
+        }
+
+        if (!isAtmos) {
+            when {
+                has(TRUEHD_REGEX) -> add("TrueHD", "tech-audio", foreground = "#D1D5DB", border = "#4B5563")
+                has(DD_PLUS_REGEX) -> add("DD+", "tech-audio", foreground = "#D1D5DB", border = "#4B5563")
+                has(DD_REGEX) -> add("DD", "tech-audio", foreground = "#D1D5DB", border = "#4B5563")
+                has(AAC_REGEX) -> add("AAC", "tech-audio", foreground = "#D1D5DB", border = "#4B5563")
+            }
+        }
+
+        when {
+            has(SURROUND_7_1_REGEX) -> add("7.1", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+            has(SURROUND_5_1_REGEX) -> add("5.1", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+        }
+
+        when {
+            has(HEVC_REGEX) -> add("HEVC", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+            has(AV1_REGEX) -> add("AV1", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+        }
+
+        if (has(TEN_BIT_REGEX)) {
+            add("10-bit", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
+        }
+
+        return technical.take(8)
+    }
+
+    private val FOUR_K_REGEX = Regex("""(?i)(^|[^a-z0-9])(2160p?|4k|uhd)([^a-z0-9]|$)""")
+    private val FULL_HD_REGEX = Regex("""(?i)(^|[^a-z0-9])(1080p?|fhd)([^a-z0-9]|$)""")
+    private val DOLBY_VISION_REGEX = Regex("""(?i)(dolby[ ._-]?vision|\bdovi\b|\bdv\b)""")
+    private val HDR10_PLUS_REGEX = Regex("""(?i)(hdr10\+|hdr10plus|hdr10 plus)""")
+    private val HDR10_REGEX = Regex("""(?i)hdr10""")
+    private val HDR_REGEX = Regex("""(?i)(^|[^a-z0-9])hdr([^a-z0-9]|$)""")
+    private val HLG_REGEX = Regex("""(?i)(^|[^a-z0-9])hlg([^a-z0-9]|$)""")
+    private val ATMOS_REGEX = Regex("""(?i)(^|[^a-z0-9])(atmos|dolby[ ._-]?atmos)([^a-z0-9]|$)""")
+    private val DTS_X_REGEX = Regex("""(?i)(dts[ .:_-]?x|dtsx)([^a-z0-9]|$)""")
+    private val DTS_HD_MA_REGEX = Regex("""(?i)(dts[ ._-]?hd[ ._-]?ma|dtshd[ ._-]?ma)""")
+    private val DTS_HD_REGEX = Regex("""(?i)(dts[ ._-]?hd|dtshd)([^a-z0-9]|$)""")
+    private val DTS_REGEX = Regex("""(?i)(^|[^a-z0-9])dts([^a-z0-9]|$)""")
+    private val TRUEHD_REGEX = Regex("""(?i)(true[ ._-]?hd)([^a-z0-9]|$)""")
+    private val DD_PLUS_REGEX = Regex("""(?i)(\bddp\b|dd\+|e[- .]?ac[- .]?3|dolby digital plus)""")
+    private val DD_REGEX = Regex("""(?i)(\bac[- .]?3\b|\bdd\b)""")
+    private val AAC_REGEX = Regex("""(?i)(^|[^a-z0-9])aac([^a-z0-9]|$)""")
+    private val SURROUND_7_1_REGEX = Regex("""(?i)(^|[^a-z0-9])7[ .]1([^a-z0-9]|$)""")
+    private val SURROUND_5_1_REGEX = Regex("""(?i)(^|[^a-z0-9])5[ .]1([^a-z0-9]|$)|6ch""")
+    private val HEVC_REGEX = Regex("""(?i)(^|[^a-z0-9])(hevc|h[ .]?265|x265)([^a-z0-9]|$)""")
+    private val AV1_REGEX = Regex("""(?i)(^|[^a-z0-9])av1([^a-z0-9]|$)""")
+    private val TEN_BIT_REGEX = Regex("""(?i)(^|[^a-z0-9])10[ ._-]?bit([^a-z0-9]|$)""")
 
     fun isRemux(stream: Stream): Boolean {
         if (stream.quality?.contains("remux", ignoreCase = true) == true) return true

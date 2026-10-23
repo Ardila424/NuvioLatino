@@ -33,7 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.nuvio.tv.R
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
@@ -142,6 +145,176 @@ fun StreamBadgeChips(
     }
 }
 
+/**
+ * Compact inline badge strip used inside the stream card title row. Keeps the
+ * whole card height unchanged while surfacing the release's technical marks.
+ */
+@Composable
+fun StreamInlineBadges(
+    badges: List<StreamBadge>,
+    fileSizeBytes: Long? = null,
+    showFileSizeBadge: Boolean = false,
+    maxVisible: Int = 4,
+    modifier: Modifier = Modifier
+) {
+    val gbTemplate = stringResource(R.string.unit_size_gb)
+    val mbTemplate = stringResource(R.string.unit_size_mb)
+    val sizeBadge = remember(fileSizeBytes, showFileSizeBadge, gbTemplate, mbTemplate) {
+        if (!showFileSizeBadge || fileSizeBytes == null) return@remember null
+        val gib = fileSizeBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+        val label = if (gib >= 1.0) {
+            gbTemplate.format((round(gib * 10.0) / 10.0).toString())
+        } else {
+            mbTemplate.format(round(fileSizeBytes.toDouble() / (1024.0 * 1024.0)).toInt().toString())
+        }
+        StreamBadge(
+            name = label,
+            tagStyle = "tech-size",
+            textColor = "#D1D5DB",
+            borderColor = "#4B5563"
+        )
+    }
+    val ordered = remember(badges, sizeBadge) {
+        (badges + listOfNotNull(sizeBadge)).sortedBy(::compactBadgePriority)
+    }
+    if (ordered.isEmpty()) return
+
+    val visible = ordered.take(maxVisible)
+    val overflow = ordered.size - visible.size
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        visible.forEach { badge -> StreamBadgeMark(badge) }
+        if (overflow > 0) {
+            StreamMetaBadge(label = "+$overflow")
+        }
+    }
+}
+
+/** Shared compact mark: brand wordmarks, verified provenance and imported images. */
+@Composable
+internal fun StreamBadgeMark(
+    badge: StreamBadge,
+    modifier: Modifier = Modifier,
+    badgeHeight: Dp = 17.dp,
+    fontSize: TextUnit = 9.sp,
+    horizontalPadding: Dp = 4.dp
+) {
+    if (badge.imageURL.isNotBlank()) {
+        StreamImportedBadgeChip(badge = badge, modifier = modifier)
+        return
+    }
+
+    val label = compactBadgeLabel(badge)
+    if (label.isBlank()) return
+    val (background, foreground, outline) = compactBadgeColors(badge)
+    val shape = RoundedCornerShape(4.dp)
+
+    Box(
+        modifier = modifier
+            .height(badgeHeight)
+            .clip(shape)
+            .then(
+                if (background != Color.Transparent) Modifier.background(background, shape)
+                else Modifier
+            )
+            .then(
+                if (outline != Color.Transparent) Modifier.border(1.dp, outline, shape)
+                else Modifier
+            )
+            .padding(horizontal = horizontalPadding),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = fontSize,
+                lineHeight = fontSize * 1.1f,
+                letterSpacing = 0.2.sp
+            ),
+            color = foreground,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun StreamMetaBadge(label: String) {
+    Box(
+        modifier = Modifier
+            .height(17.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, Color(0xFF4B5563), RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 9.sp,
+                lineHeight = 10.sp
+            ),
+            color = Color(0xFFD1D5DB),
+            maxLines = 1
+        )
+    }
+}
+
+private fun compactBadgePriority(badge: StreamBadge): Int = when {
+    badge.tagStyle == "tech-lang" -> 0
+    badge.name.contains("LATINO (Verificado)") -> 1
+    badge.tagStyle == "tech-4k" -> 2
+    badge.tagStyle == "tech-dv" -> 3
+    badge.tagStyle == "tech-hdr" -> 4
+    badge.tagStyle == "tech-atmos" -> 5
+    badge.name.contains("REMUX") -> 6
+    badge.tagStyle == "tech-dts" -> 7
+    badge.tagStyle == "tech-audio" -> 8
+    badge.tagStyle == "tech-size" -> 9
+    badge.name == "🇲🇽 LATINO" -> 10
+    badge.name.startsWith("🚫 Sin Latino") -> 11
+    badge.tagStyle == "tech-meta" -> 12
+    else -> 20
+}
+
+private fun compactBadgeLabel(badge: StreamBadge): String = when {
+    badge.name.contains("LATINO (Verificado)") -> "LATINO ✓"
+    badge.name == "🇲🇽 LATINO" -> "LATINO ?"
+    badge.name.startsWith("🚫 Sin Latino") -> "SIN LATINO"
+    badge.name.contains("REMUX") -> "REMUX"
+    badge.name.contains("CASTELLANO") -> "ESPAÑOL"
+    badge.name.contains("MULTI") -> "MULTI"
+    else -> badge.name
+}
+
+private fun compactBadgeColors(badge: StreamBadge): Triple<Color, Color, Color> = when {
+    badge.tagStyle == "tech-lang" -> Triple(Color(0xFF0F766E), Color.White, Color(0xFF14B8A6))
+    badge.name.contains("LATINO (Verificado)") -> Triple(Color(0xFF059669), Color.White, Color(0xFF10B981))
+    badge.name == "🇲🇽 LATINO" -> Triple(Color.Transparent, Color(0xFFF59E0B), Color(0xFFF59E0B))
+    badge.name.startsWith("🚫 Sin Latino") -> Triple(Color.Transparent, Color(0xFF9CA3AF), Color(0xFF4B5563))
+    badge.name.contains("REMUX") -> Triple(Color(0xFF6D28D9), Color.White, Color(0xFF8B5CF6))
+    badge.name.contains("CASTELLANO") -> Triple(Color(0xFFB45309), Color.White, Color(0xFFF59E0B))
+    badge.name.contains("MULTI") -> Triple(Color(0xFF1D4ED8), Color.White, Color(0xFF3B82F6))
+    badge.tagStyle == "tech-4k" || badge.tagStyle == "tech-dv" ->
+        Triple(Color(0xFF000000), Color.White, Color.White)
+    badge.tagStyle == "tech-hdr" ->
+        Triple(Color(0xFF0B0B0C), Color.White, Color(0xFF9CA3AF))
+    badge.tagStyle == "tech-atmos" || badge.tagStyle == "tech-dts" ->
+        Triple(Color(0xFF0B0B0C), Color.White, Color(0xFF6B7280))
+    badge.tagStyle == "tech-audio" || badge.tagStyle == "tech-meta" || badge.tagStyle == "tech-size" ->
+        Triple(Color.Transparent, Color(0xFFD1D5DB), Color(0xFF4B5563))
+    else -> Triple(
+        badge.tagColor.toBadgeColorOrNull() ?: Color.White.copy(alpha = 0.08f),
+        badge.textColor.toBadgeColorOrNull() ?: Color.White,
+        badge.borderColor.toBadgeColorOrNull() ?: Color.White.copy(alpha = 0.18f)
+    )
+}
+
 @Composable
 private fun StreamTextBadgeChip(badge: StreamBadge) {
     val backgroundColor = remember(badge.tagColor) {
@@ -204,7 +377,11 @@ private fun StreamFileSizeBadge(bytes: Long) {
 }
 
 @Composable
-internal fun StreamImportedBadgeChip(badge: StreamBadge, crossfade: Boolean = false) {
+internal fun StreamImportedBadgeChip(
+    badge: StreamBadge,
+    crossfade: Boolean = false,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val backgroundColor = remember(badge.tagColor, badge.tagStyle) {
@@ -247,7 +424,8 @@ internal fun StreamImportedBadgeChip(badge: StreamBadge, crossfade: Boolean = fa
         .then(if (outlineColor != null) Modifier.border(NuvioTheme.spacing.hairline, outlineColor, BadgeChipShape) else Modifier)
 
     Box(
-        modifier = chipModifier
+        modifier = modifier
+            .then(chipModifier)
             .padding(horizontal = 3.dp, vertical = NuvioTheme.spacing.xxs),
         contentAlignment = Alignment.Center
     ) {

@@ -144,7 +144,7 @@ fun StreamSortChips(
     }
 }
 
-private fun StreamSortMode.labelRes(): Int = when (this) {
+internal fun StreamSortMode.labelRes(): Int = when (this) {
     StreamSortMode.MEJOR_CON_LATINO -> R.string.stream_sort_best_latino
     StreamSortMode.CALIDAD -> R.string.stream_sort_quality
     StreamSortMode.TAMANO -> R.string.stream_sort_size

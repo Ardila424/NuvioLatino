@@ -1317,6 +1317,7 @@ fun PlayerScreen(
             type = uiState.contentType,
             description = uiState.description,
             cast = uiState.castMembers,
+            badges = playerBadges,
             showClock = !uiState.isLive,
             modifier = Modifier
                 .fillMaxSize()

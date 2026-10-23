@@ -71,8 +71,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import androidx.compose.ui.platform.LocalContext
@@ -98,8 +100,12 @@ import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.ui.components.SourceChipItem
 import com.nuvio.tv.ui.components.SourceChipStatus
 import com.nuvio.tv.ui.components.P2pConsentDialog
-import com.nuvio.tv.ui.components.StreamBadgeChips
+import com.nuvio.tv.ui.components.StreamInlineBadges
+import com.nuvio.tv.ui.components.StreamOption
+import com.nuvio.tv.ui.components.StreamOptionDialog
+import com.nuvio.tv.ui.components.StreamToolbarChip
 import com.nuvio.tv.ui.components.StreamsSkeletonList
+import com.nuvio.tv.ui.components.labelRes
 import com.nuvio.tv.ui.screens.player.LoadingOverlay
 import com.nuvio.tv.ui.screens.player.AddonFilterChips
 import com.nuvio.tv.ui.theme.NuvioTheme
@@ -474,6 +480,7 @@ fun StreamScreen(
                     onAddonFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnAddonFilterSelected(it)) },
                     onQuickFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnQuickFilterSelected(it)) },
                     onSortModeSelected = { viewModel.onEvent(StreamScreenEvent.OnSortModeSelected(it)) },
+                    onVerifyMore = { viewModel.probeMoreStreams() },
                     onStreamFocused = { viewModel.onEvent(StreamScreenEvent.OnStreamFocused(it)) },
                     onRefresh = { viewModel.onEvent(StreamScreenEvent.OnRefresh) },
                     sharedStream = sharedStream,
@@ -772,6 +779,7 @@ private fun RightStreamSection(
     selectedSortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO,
     onQuickFilterSelected: (StreamQuickFilter) -> Unit = {},
     onSortModeSelected: (StreamSortMode) -> Unit = {},
+    onVerifyMore: () -> Unit = {},
     showFileSizeBadges: Boolean,
     showAddonLogo: Boolean,
     badgePlacement: StreamBadgePlacement,
@@ -807,35 +815,24 @@ private fun RightStreamSection(
         }
     }
     val firstStreamKey = streams.firstOrNull()?.stableKey(0)
+    val sourceFocusRequester = remember { FocusRequester() }
+    val sortFocusRequester = remember { FocusRequester() }
     val refreshFocusRequester = remember { FocusRequester() }
-    val allFocusRequester = remember { FocusRequester() }
-    val addonFocusRequesters = remember { mutableMapOf<String, FocusRequester>() }
+    val verifyMoreFocusRequester = remember { FocusRequester() }
     val quickFilterFocusRequesters = remember { List(5) { FocusRequester() } }
-    val sortFocusRequesters = remember { List(StreamSortMode.values().size) { FocusRequester() } }
-    val chipFocusRequesters = remember(orderedAddonNames) {
-        // Remove stale entries for addons that no longer exist
-        addonFocusRequesters.keys.retainAll(orderedAddonNames.toSet())
-        buildList {
-            add(refreshFocusRequester)
-            add(allFocusRequester)
-            orderedAddonNames.forEach { addon ->
-                add(addonFocusRequesters.getOrPut(addon) { FocusRequester() })
-            }
+    var showSourceMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    fun restoreFocus(requester: FocusRequester) {
+        focusJob?.cancel()
+        focusJob = scope.coroutineLaunch {
+            withFrameNanos {}
+            runCatching { requester.requestFocus() }
         }
     }
     fun onAddonFilterSelectedGuarded(addon: String?) {
         userMovedFromFirstResult = true
         onAddonFilterSelected(addon)
-        focusJob?.cancel()
-        focusJob = scope.coroutineLaunch {
-            withFrameNanos {}
-            val targetRequester = if (addon == null) {
-                chipFocusRequesters.getOrNull(1)
-            } else {
-                addonFocusRequesters[addon]
-            }
-            runCatching { targetRequester?.requestFocus() }
-        }
+        restoreFocus(sourceFocusRequester)
     }
 
     LaunchedEffect(Unit) {
@@ -868,16 +865,6 @@ private fun RightStreamSection(
         }
         trackedFirstStreamKey = firstStreamKey
     }
-    fun requestChipFocus(index: Int) {
-        if (index !in chipFocusRequesters.indices) return
-        userMovedFromFirstResult = true
-        focusJob?.cancel()
-        focusJob = scope.coroutineLaunch {
-            withFrameNanos { }
-            runCatching { chipFocusRequesters[index].requestFocus() }
-        }
-    }
-
     Column(
         modifier = modifier
             .padding(top = NuvioTheme.spacing.xxxl, end = NuvioTheme.spacing.xxxl, bottom = NuvioTheme.spacing.xxxl)
@@ -935,34 +922,82 @@ private fun RightStreamSection(
                     }
                 }
 
-                // Addon filter chips
-                Box(modifier = Modifier.height(NuvioTheme.spacing.xxxl)) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = sourceChips.isNotEmpty() || (!isLoading && availableAddons.isNotEmpty()),
-                        enter = fadeIn(animationSpec = tween(300)),
-                        exit = fadeOut(animationSpec = tween(300))
-                    ) {
-                        AddonFilterChips(
-                            addons = availableAddons,
-                            sourceChips = sourceChips,
-                            selectedAddon = selectedAddonFilter,
-                            isStillFetching = sourceChips.any { it.status == SourceChipStatus.LOADING },
-                            onRefresh = {
-                                userMovedFromFirstResult = false
-                                firstResultFocusAssigned = false
-                                onRefresh()
-                            },
-                            onAddonSelected = { onAddonFilterSelected(it) },
-                            externalFocusRequesters = chipFocusRequesters,
-                            externalOrderedNames = orderedAddonNames,
-                            debugTag = "StreamScreen"
-                        )
-                    }
-                }
-
                 val activeStreamsForFilter = remember(allStreams, selectedAddonFilter) {
                     if (selectedAddonFilter == null) allStreams
                     else allStreams.filter { it.addonName == selectedAddonFilter }
+                }
+                val allSourcesLabel = stringResource(R.string.stream_filter_all)
+                val addonOptions = remember(orderedAddonNames, allStreams, allSourcesLabel) {
+                    val counts = allStreams.groupingBy { it.addonName }.eachCount()
+                    buildList {
+                        add(StreamOption(null, allSourcesLabel, allStreams.size.toString()))
+                        orderedAddonNames.forEach { name ->
+                            add(StreamOption(name, name, (counts[name] ?: 0).toString()))
+                        }
+                    }
+                }
+                val sortOptions = StreamSortMode.values().map { mode ->
+                    StreamOption(mode.name, stringResource(mode.labelRes()))
+                }
+                val latinoProbeStats = remember(activeStreamsForFilter) {
+                    val verified = activeStreamsForFilter.count { stream ->
+                        stream.badges.any { it.name.contains("LATINO (Verificado)") }
+                    }
+                    val probed = activeStreamsForFilter.count { stream ->
+                        stream.badges.any {
+                            it.name.contains("LATINO (Verificado)") ||
+                                it.name.startsWith("🚫 Sin Latino")
+                        }
+                    }
+                    verified to probed
+                }
+
+                // Two-row toolbar: source + sort selectors, then the quick filters.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+                ) {
+                    StreamToolbarChip(
+                        label = stringResource(R.string.stream_toolbar_source),
+                        value = selectedAddonFilter ?: allSourcesLabel,
+                        onClick = { showSourceMenu = true },
+                        focusRequester = sourceFocusRequester,
+                        modifier = Modifier.onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                quickFilterFocusRequesters
+                                    .getOrNull(selectedQuickFilter.ordinal)
+                                    ?.requestFocus()
+                                true
+                            } else false
+                        }
+                    )
+                    StreamToolbarChip(
+                        label = stringResource(R.string.stream_toolbar_sort),
+                        value = stringResource(selectedSortMode.labelRes()),
+                        onClick = { showSortMenu = true },
+                        focusRequester = sortFocusRequester,
+                        modifier = Modifier.onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                quickFilterFocusRequesters
+                                    .getOrNull(selectedQuickFilter.ordinal)
+                                    ?.requestFocus()
+                                true
+                            } else false
+                        }
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    StreamToolbarChip(
+                        label = "",
+                        value = "↻",
+                        onClick = {
+                            userMovedFromFirstResult = false
+                            firstResultFocusAssigned = false
+                            onRefresh()
+                        },
+                        focusRequester = refreshFocusRequester,
+                        showChevron = false
+                    )
                 }
 
                 if (activeStreamsForFilter.isNotEmpty()) {
@@ -972,39 +1007,98 @@ private fun RightStreamSection(
                         selectedFilter = selectedQuickFilter,
                         onFilterSelected = onQuickFilterSelected,
                         externalFocusRequesters = quickFilterFocusRequesters,
-                        onUpKey = {
-                            val idx = if (selectedAddonFilter == null) 1
-                                      else orderedAddonNames.indexOf(selectedAddonFilter) + 2
-                            requestChipFocus(idx)
-                        },
+                        onUpKey = { restoreFocus(sourceFocusRequester) },
                         onDownKey = {
-                            runCatching {
-                                sortFocusRequesters
-                                    .getOrNull(selectedSortMode.ordinal)
-                                    ?.requestFocus()
+                            if (selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED) {
+                                runCatching { verifyMoreFocusRequester.requestFocus() }
+                            } else {
+                                firstStreamFocusRequestId += 1
                             }
                         }
                     )
                 }
 
-                if (activeStreamsForFilter.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(NuvioTheme.spacing.xs))
-                    com.nuvio.tv.ui.components.StreamSortChips(
-                        selectedMode = selectedSortMode,
-                        onModeSelected = onSortModeSelected,
-                        focusRequesters = sortFocusRequesters,
-                        onUpKey = {
-                            runCatching {
-                                quickFilterFocusRequesters
-                                    .getOrNull(selectedQuickFilter.ordinal)
-                                    ?.requestFocus()
+                if (selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = NuvioTheme.spacing.xxs, start = NuvioTheme.spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.stream_filter_latino_hint,
+                                latinoProbeStats.second,
+                                activeStreamsForFilter.size,
+                                latinoProbeStats.first
+                            ),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NuvioTheme.extendedColors.textTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        StreamToolbarChip(
+                            label = "",
+                            value = stringResource(R.string.stream_filter_verify_more),
+                            onClick = onVerifyMore,
+                            focusRequester = verifyMoreFocusRequester,
+                            showChevron = false,
+                            modifier = Modifier.onKeyEvent { event ->
+                                when {
+                                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
+                                        firstStreamFocusRequestId += 1
+                                        true
+                                    }
+                                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
+                                        quickFilterFocusRequesters
+                                            .getOrNull(selectedQuickFilter.ordinal)
+                                            ?.requestFocus()
+                                        true
+                                    }
+                                    else -> false
+                                }
                             }
-                        },
-                        onDownKey = { firstStreamFocusRequestId += 1 }
-                    )
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(NuvioTheme.spacing.md))
+
+                if (showSourceMenu) {
+                    StreamOptionDialog(
+                        title = stringResource(R.string.stream_toolbar_source),
+                        options = addonOptions,
+                        selectedId = selectedAddonFilter,
+                        onSelect = { id ->
+                            showSourceMenu = false
+                            onAddonFilterSelectedGuarded(id)
+                            restoreFocus(sourceFocusRequester)
+                        },
+                        onDismiss = {
+                            showSourceMenu = false
+                            restoreFocus(sourceFocusRequester)
+                        }
+                    )
+                }
+                if (showSortMenu) {
+                    StreamOptionDialog(
+                        title = stringResource(R.string.stream_toolbar_sort),
+                        options = sortOptions,
+                        selectedId = selectedSortMode.name,
+                        onSelect = { id ->
+                            showSortMenu = false
+                            StreamSortMode.values().firstOrNull { it.name == id }
+                                ?.let(onSortModeSelected)
+                            restoreFocus(sortFocusRequester)
+                        },
+                        onDismiss = {
+                            showSortMenu = false
+                            restoreFocus(sortFocusRequester)
+                        }
+                    )
+                }
 
                 // Streams / loading / error / empty
                 Box(
@@ -1045,7 +1139,7 @@ private fun RightStreamSection(
                                 hasBadgeRules = hasBadgeRules,
                                 onAddonFilterSelected = { onAddonFilterSelectedGuarded(it) },
                                 orderedAddonNames = orderedAddonNames,
-                                onRequestChipFocus = { requestChipFocus(it) },
+                                onRequestChipFocus = { restoreFocus(sourceFocusRequester) },
                                 selectedQuickFilter = selectedQuickFilter,
                                 selectedSortMode = selectedSortMode,
                                 onRequestQuickFilterFocus = if (activeStreamsForFilter.isNotEmpty()) {{
@@ -1448,15 +1542,8 @@ private fun StreamCard(
             ?.replace(Regex("\\s*\\r?\\n\\s*"), " · ")
             ?.trim()
     }
-    val hasBadges = stream.badges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null) || reserveBadgeSpace
-
     var isFocused by remember { mutableStateOf(false) }
 
-    // Track whether badges transitioned from empty to non-empty while this
-    // card was composed. If they did, we animate. If the card enters
-    // composition with badges already present (tab switch), no animation.
-    val hadBadgesOnFirstComposition = remember { stream.badges.isNotEmpty() }
-    val shouldAnimateBadges = stream.badges.isNotEmpty() && !hadBadgesOnFirstComposition
     val logoDecodeSize = remember(density) {
         with(density) { NuvioTheme.spacing.xl.roundToPx() } * 2
     }
@@ -1539,21 +1626,6 @@ private fun StreamCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
                 ) {
-                if (hasBadges && badgePlacement == StreamBadgePlacement.TOP) {
-                    if (stream.badges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null)) {
-                        StreamBadgeChips(
-                            badges = stream.badges,
-                            fileSizeBytes = stream.behaviorHints?.videoSize,
-                            showFileSizeBadge = showFileSizeBadges,
-                            animate = shouldAnimateBadges,
-                            focused = isFocused
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-                    Spacer(modifier = Modifier.height(NuvioTheme.spacing.xxs))
-                }
-
                 Row(
                     modifier = Modifier.align(streamName.contentTextDirection().toAbsoluteAlignment()),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1577,6 +1649,12 @@ private fun StreamCard(
                             maxLines = 1
                         )
                     }
+                    StreamInlineBadges(
+                        badges = stream.badges,
+                        fileSizeBytes = stream.behaviorHints?.videoSize,
+                        showFileSizeBadge = showFileSizeBadges,
+                        maxVisible = 4
+                    )
                 }
 
                 stream.pluginSourceName?.takeIf { it.isNotBlank() && it != stream.addonName }?.let { sourceName ->
@@ -1605,20 +1683,6 @@ private fun StreamCard(
                     }
                 }
 
-                if (hasBadges && badgePlacement == StreamBadgePlacement.BOTTOM) {
-                    if (stream.badges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null)) {
-                        StreamBadgeChips(
-                            badges = stream.badges,
-                            fileSizeBytes = stream.behaviorHints?.videoSize,
-                            showFileSizeBadge = showFileSizeBadges,
-                            animate = shouldAnimateBadges,
-                            focused = isFocused,
-                            modifier = Modifier.padding(top = NuvioTheme.spacing.xxs)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(22.dp))
-                    }
-                }
             }
 
             if (showAddonLogo && addonLogoModel != null) {

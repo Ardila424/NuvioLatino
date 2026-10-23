@@ -30,7 +30,7 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isLatino(stream))
         assertFalse(NativeStreamBadgeDetector.isRemux(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("🇲🇽 LATINO"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
     }
 
     @Test
@@ -41,7 +41,7 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isCastellano(stream))
         assertFalse(NativeStreamBadgeDetector.isLatino(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("🇪🇸 CASTELLANO"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO" })
     }
 
     @Test
@@ -51,7 +51,7 @@ class NativeStreamBadgeDetectorTest {
         )
         assertTrue(NativeStreamBadgeDetector.isMulti(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("🌐 MULTI"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "🌐 MULTI" })
     }
 
     @Test
@@ -68,7 +68,8 @@ class NativeStreamBadgeDetectorTest {
         assertFalse(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
 
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("💎 REMUX"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "💎 REMUX" })
+        assertFalse(badges.any { it.name.contains("LATINO") })
     }
 
     @Test
@@ -83,7 +84,8 @@ class NativeStreamBadgeDetectorTest {
         assertFalse(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
 
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("💎 REMUX"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "💎 REMUX" })
+        assertFalse(badges.any { it.name.contains("LATINO") })
     }
 
     @Test
@@ -96,7 +98,8 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isLatino(stream))
         assertTrue(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("💎 REMUX", "🇲🇽 LATINO"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "💎 REMUX" })
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
     }
 
     @Test
@@ -203,7 +206,9 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isLatino(stream))
         assertFalse(NativeStreamBadgeDetector.isCastellano(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertEquals(listOf("💎 REMUX", "🇲🇽 LATINO (Verificado)"), badges.map { it.name })
+        assertTrue(badges.any { it.name == "💎 REMUX" })
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO (Verificado)" })
+        assertFalse(badges.any { it.name == "🇲🇽 LATINO" })
     }
 
     @Test
@@ -246,6 +251,35 @@ class NativeStreamBadgeDetectorTest {
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
         assertTrue(badges.any { it.name.startsWith("🚫 Sin Latino") })
         assertTrue(badges.any { it.name == "🇪🇸 CASTELLANO" })
+    }
+
+    @Test
+    fun `detects technical badges from release name`() {
+        val stream = createStream(
+            filename = "Project.Hail.Mary.2026.2160p.UHD.BluRay.REMUX.DV.HDR10.HEVC.TrueHD.7.1.Atmos-FraMeSToR.mkv"
+        )
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue("4K" in names)
+        assertTrue("DV" in names)
+        assertTrue("HDR10" in names)
+        assertTrue("ATMOS" in names)
+        assertTrue("7.1" in names)
+        assertTrue("HEVC" in names)
+        assertFalse("1080p" in names)
+    }
+
+    @Test
+    fun `does not report 4K or HDR for plain 1080p SDR release`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.WEB-DL.AAC.2.0.x264-GROUP.mkv"
+        )
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue("1080p" in names)
+        assertTrue("AAC" in names)
+        assertFalse("4K" in names)
+        assertFalse("HDR" in names)
+        assertFalse("HDR10" in names)
+        assertFalse("DV" in names)
     }
 
     private fun createStream(

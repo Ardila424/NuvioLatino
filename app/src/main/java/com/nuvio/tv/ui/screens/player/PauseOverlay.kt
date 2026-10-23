@@ -47,6 +47,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import androidx.compose.ui.platform.LocalContext
 import com.nuvio.tv.domain.model.MetaCastMember
+import com.nuvio.tv.domain.model.StreamBadge
 import android.text.format.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -70,6 +71,7 @@ fun PauseOverlay(
     type: String?,
     description: String?,
     cast: List<MetaCastMember>,
+    badges: List<StreamBadge> = emptyList(),
     modifier: Modifier = Modifier,
     showClock: Boolean = true
 ) {
@@ -113,6 +115,7 @@ fun PauseOverlay(
                     type = type,
                     description = description,
                     cast = cast,
+                    badges = badges,
                     onCastSelected = { selectedCastMember = it }
                 )
             }
@@ -157,6 +160,7 @@ private fun PauseMetadataView(
     type: String?,
     description: String?,
     cast: List<MetaCastMember>,
+    badges: List<StreamBadge>,
     onCastSelected: (MetaCastMember) -> Unit
 ) {
     Column(
@@ -219,6 +223,13 @@ private fun PauseMetadataView(
                     text = "$year$episodeLabel",
                     style = MaterialTheme.typography.bodyLarge,
                     color = NuvioTheme.colors.TextSecondary,
+                    modifier = Modifier.padding(top = NuvioTheme.spacing.sm)
+                )
+            }
+
+            if (badges.isNotEmpty()) {
+                PlayerBadges(
+                    badges = badges,
                     modifier = Modifier.padding(top = NuvioTheme.spacing.sm)
                 )
             }

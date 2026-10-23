@@ -59,25 +59,36 @@ fun QuickFilterChips(
     modifier: Modifier = Modifier
 ) {
     var filterCounts by remember {
-        mutableStateOf(List(4) { 0 })
+        mutableStateOf(List(5) { 0 })
     }
 
     LaunchedEffect(allStreams) {
         if (allStreams.isEmpty()) {
-            filterCounts = List(4) { 0 }
+            filterCounts = List(5) { 0 }
             return@LaunchedEffect
         }
         // Coalesce the burst of list updates that arrives while probes land:
         // recomputing on every badge change caused the chips to flicker.
         delay(250)
         val counts = withContext(Dispatchers.Default) {
+            val verifiedLatino = allStreams.count { stream ->
+                stream.badges.any { it.name.contains("LATINO (Verificado)") }
+            }
+            // "Solo Latino" only covers streams that were actually probed, which
+            // today is the top REMUX batch. Show the denominator so the chip does
+            // not imply that every source in the list was checked.
+            val probed = allStreams.count { stream ->
+                stream.badges.any {
+                    it.name.contains("LATINO (Verificado)") ||
+                        it.name.startsWith("🚫 Sin Latino")
+                }
+            }
             listOf(
-                allStreams.count { stream ->
-                    stream.badges.any { it.name.contains("LATINO (Verificado)") }
-                },
+                verifiedLatino,
                 allStreams.count { NativeStreamBadgeDetector.isSpanishOrLatino(it) },
                 allStreams.count { NativeStreamBadgeDetector.isRemux(it) },
-                allStreams.count { NativeStreamBadgeDetector.is4K(it) }
+                allStreams.count { NativeStreamBadgeDetector.is4K(it) },
+                probed
             )
         }
         filterCounts = counts
@@ -142,7 +153,14 @@ fun QuickFilterChips(
         itemsIndexed(options) { index, option ->
             val isSelected = selectedFilter == option.filter
             val labelText = stringResource(option.labelRes)
-            val displayText = "${option.icon}$labelText (${option.count})"
+            val probedCount = filterCounts.getOrElse(4) { 0 }
+            val displayText = if (
+                option.filter == StreamQuickFilter.LATINO_VERIFIED && probedCount > 0
+            ) {
+                "${option.icon}$labelText (${option.count}/$probedCount)"
+            } else {
+                "${option.icon}$labelText (${option.count})"
+            }
 
             var isFocused by remember { mutableStateOf(false) }
             val textColor = when {

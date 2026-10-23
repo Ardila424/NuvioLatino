@@ -46,6 +46,7 @@ private fun exoMediaInfo(video: Format?, audio: Format?): PlayerMediaInfo =
         videoWidth = video?.width?.takeIf { it > 0 },
         videoHeight = video?.height?.takeIf { it > 0 },
         audioCodec = CustomDefaultTrackNameProvider.formatNameFromMime(audio?.sampleMimeType),
+        audioProfile = audio?.codecs,
         audioChannels = audio?.channelCount?.takeIf { it > 0 },
         hdr = video?.hdrFormats().orEmpty(),
         bitDepth = video?.colorInfo?.lumaBitdepth?.takeIf { it > 0 }
