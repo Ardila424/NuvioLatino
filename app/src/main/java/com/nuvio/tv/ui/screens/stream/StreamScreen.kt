@@ -936,7 +936,7 @@ private fun RightStreamSection(
                 }
 
                 // Addon filter chips
-                Box(modifier = Modifier.height(NuvioTheme.spacing.huge)) {
+                Box(modifier = Modifier.height(NuvioTheme.spacing.xxxl)) {
                     androidx.compose.animation.AnimatedVisibility(
                         visible = sourceChips.isNotEmpty() || (!isLoading && availableAddons.isNotEmpty()),
                         enter = fadeIn(animationSpec = tween(300)),
@@ -1441,7 +1441,13 @@ private fun StreamCard(
     val density = LocalDensity.current
     val unknownStreamLabel = stringResource(R.string.stream_unknown)
     val streamName = remember(stream, unknownStreamLabel) { stream.getDisplayNameOrNull() ?: unknownStreamLabel }
-    val streamDescription = remember(stream) { stream.getDisplayDescription() }
+    val streamDescription = remember(stream) {
+        stream.getDisplayDescription()
+            // Addon payloads are multi-line; flatten them so the whole thing
+            // fits in a couple of dense lines instead of being truncated.
+            ?.replace(Regex("\\s*\\r?\\n\\s*"), " · ")
+            ?.trim()
+    }
     val hasBadges = stream.badges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null) || reserveBadgeSpace
 
     var isFocused by remember { mutableStateOf(false) }
@@ -1592,10 +1598,9 @@ private fun StreamCard(
                                 textDirection = description.contentTextDirection()
                             ),
                             color = NuvioTheme.extendedColors.textSecondary,
-                            // Fixed 2-line summary for every card: compact rows
-                            // that do not jump when focus moves.
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                            // Full addon payload, densified; no truncation.
+                            maxLines = Int.MAX_VALUE,
+                            overflow = TextOverflow.Clip
                         )
                     }
                 }
@@ -1616,32 +1621,15 @@ private fun StreamCard(
                 }
             }
 
-            if (showAddonLogo) {
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    if (addonLogoModel != null) {
-                        AsyncImage(
-                            model = addonLogoModel,
-                            contentDescription = stream.addonName,
-                            modifier = Modifier
-                                .size(NuvioTheme.spacing.xl)
-                                .clip(RoundedCornerShape(NuvioTheme.radii.xs)),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(NuvioTheme.spacing.xxs))
-
-                    Text(
-                        text = stream.addonName,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            textDirection = stream.addonName.contentTextDirection()
-                        ),
-                        color = NuvioTheme.extendedColors.textTertiary,
-                        maxLines = 1
-                    )
-                }
+            if (showAddonLogo && addonLogoModel != null) {
+                AsyncImage(
+                    model = addonLogoModel,
+                    contentDescription = stream.addonName,
+                    modifier = Modifier
+                        .size(NuvioTheme.spacing.xl)
+                        .clip(RoundedCornerShape(NuvioTheme.radii.xs)),
+                    contentScale = ContentScale.Fit
+                )
             }
         }
     }

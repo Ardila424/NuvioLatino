@@ -7,6 +7,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +87,7 @@ fun SourceStatusFilterChip(
         selected = isSelected,
         onClick = { if (isSelectable) onClick() },
         modifier = modifier
+            .height(34.dp)
             .graphicsLayer {
                 alpha = alphaPulse.value
                 translationX = shakeOffsetPx.value
@@ -98,7 +100,7 @@ fun SourceStatusFilterChip(
                 }
             },
         colors = FilterChipDefaults.colors(
-            containerColor = if (shouldUseNormalColors) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else NuvioTheme.colors.Error.copy(alpha = 0.05f),
+            containerColor = if (shouldUseNormalColors) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f) else NuvioTheme.colors.Error.copy(alpha = 0.05f),
             focusedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.08f),
             selectedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.07f),
             focusedSelectedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.09f),
@@ -112,7 +114,7 @@ fun SourceStatusFilterChip(
                 border = BorderStroke(
                     NuvioTheme.spacing.hairline,
                     if (isError) NuvioTheme.colors.Error.copy(alpha = 0.7f)
-                    else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f)
+                    else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
                 ),
                 shape = RoundedCornerShape(20.dp)
             ),

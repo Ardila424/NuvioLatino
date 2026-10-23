@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -97,9 +98,10 @@ fun StreamSortChips(
                     onClick = { onModeSelected(mode) },
                     modifier = Modifier
                         .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
+                        .height(32.dp)
                         .onFocusChanged { isFocused = it.isFocused },
                     colors = FilterChipDefaults.colors(
-                        containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f),
+                        containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f),
                         focusedContainerColor = NuvioTheme.colors.Secondary,
                         selectedContainerColor = NuvioTheme.colors.Secondary,
                         focusedSelectedContainerColor = NuvioTheme.colors.Secondary,
@@ -112,7 +114,7 @@ fun StreamSortChips(
                         border = Border(
                             border = BorderStroke(
                                 NuvioTheme.spacing.hairline,
-                                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f)
+                                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
                             ),
                             shape = RoundedCornerShape(16.dp)
                         ),

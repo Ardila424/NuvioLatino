@@ -367,7 +367,7 @@ internal fun AddonFilterChips(
     LazyRow(
         state = chipListState,
         horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg),
-        contentPadding = PaddingValues(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xs),
+        contentPadding = PaddingValues(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs),
         modifier = Modifier
             .onFocusChanged { focusState ->
                 val hasFocus = focusState.hasFocus

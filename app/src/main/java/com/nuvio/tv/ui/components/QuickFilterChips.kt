@@ -3,6 +3,7 @@ package com.nuvio.tv.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,9 +156,10 @@ fun QuickFilterChips(
                 onClick = { onFilterSelected(option.filter) },
                 modifier = Modifier
                     .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
+                    .height(32.dp)
                     .onFocusChanged { isFocused = it.isFocused },
                 colors = FilterChipDefaults.colors(
-                    containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f),
+                    containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f),
                     focusedContainerColor = NuvioTheme.colors.Secondary,
                     selectedContainerColor = NuvioTheme.colors.Secondary,
                     focusedSelectedContainerColor = NuvioTheme.colors.Secondary,
@@ -170,7 +172,7 @@ fun QuickFilterChips(
                     border = Border(
                         border = BorderStroke(
                             NuvioTheme.spacing.hairline,
-                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f)
+                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
                         ),
                         shape = RoundedCornerShape(16.dp)
                     ),
