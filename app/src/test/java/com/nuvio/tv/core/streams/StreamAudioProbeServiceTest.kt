@@ -78,6 +78,32 @@ class StreamAudioProbeServiceTest {
     }
 
     @Test
+    fun `evaluateAudioTracks recognizes LA and EU region abbreviations on Spanish tracks`() {
+        val tracks = listOf(
+            ProbeAudioTrack(language = "spa", languageBcp47 = "", name = "BTM DDP5.1 LA", codec = "A_EAC3"),
+            ProbeAudioTrack(language = "spa", languageBcp47 = "", name = "BTM DDP5.1 EU", codec = "A_EAC3")
+        )
+        val result = newService().evaluateAudioTracks(tracks)
+        assertTrue(result is StreamAudioProbeResult.Success)
+        val success = result as StreamAudioProbeResult.Success
+        assertTrue(success.hasLatino)
+        assertTrue(success.hasCastellano)
+    }
+
+    @Test
+    fun `evaluateAudioTracks does not read LA or EU from non-Spanish tracks`() {
+        val tracks = listOf(
+            ProbeAudioTrack(language = "eng", languageBcp47 = "en", name = "LA Commentary", codec = "A_AAC"),
+            ProbeAudioTrack(language = "fra", languageBcp47 = "fr", name = "EU Version", codec = "A_AAC")
+        )
+        val result = newService().evaluateAudioTracks(tracks)
+        assertTrue(result is StreamAudioProbeResult.Success)
+        val success = result as StreamAudioProbeResult.Success
+        assertFalse(success.hasLatino)
+        assertFalse(success.hasCastellano)
+    }
+
+    @Test
     fun `evaluateAudioTracks with non-spanish languages identifies no spanish`() {
         val tracks = listOf(
             ProbeAudioTrack(language = "eng", languageBcp47 = "en", name = "English", codec = "A_TRUEHD"),

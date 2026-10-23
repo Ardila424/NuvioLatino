@@ -367,11 +367,17 @@ class StreamAudioProbeService @Inject constructor(
         if (tracks.isEmpty()) return StreamAudioProbeResult.Inconclusive
 
         val latinoCodes = setOf(
-            "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-ve", "es-ec",
+            "es-419", "es-005", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-ve", "es-ec",
             "es-gt", "es-cr", "es-pa", "es-do", "es-us", "es-la", "es-latam", "lat", "la"
         )
         val castellanoCodes = setOf("es-es")
         val spanishCodes = setOf("spa", "es", "esl")
+        // Some releases label the Spanish tracks only by region abbreviation,
+        // e.g. "BTM DDP5.1 LA" (Latin America) and "BTM DDP5.1 EU" (Europe).
+        // Only use these markers when the track itself is Spanish so an English
+        // track named "LA" cannot be misclassified.
+        val latinoMarkerRegex = Regex("""(?i)(^|[\s._-])(la|lat|latam|latin|latino|latina|latinoamerica|latinoamérica|es-419|es-005)([\s._-]|$)""")
+        val castellanoMarkerRegex = Regex("""(?i)(^|[\s._-])(eu|esp|españa|espana|spain|castellano|castilian)([\s._-]|$)""")
 
         var hasLatino = false
         var hasCastellano = false
@@ -387,6 +393,12 @@ class StreamAudioProbeService @Inject constructor(
                 detected.add(displayCode)
             }
 
+            val isSpanishTrack = lang in spanishCodes ||
+                bcp.startsWith("es") ||
+                name.contains("español") ||
+                name.contains("espanol") ||
+                name.contains("spanish")
+
             val isLatino = bcp in latinoCodes ||
                 lang in latinoCodes ||
                 bcp.startsWith("es-419") ||
@@ -397,21 +409,22 @@ class StreamAudioProbeService @Inject constructor(
                 name.contains("latam") ||
                 name.contains("latin america") ||
                 name.contains("latinoamericano") ||
+                name.contains("latinoamerica") ||
+                name.contains("latinoamérica") ||
                 name.contains("latina") ||
                 name.contains("es-419") ||
-                name.contains("audio latino")
+                name.contains("audio latino") ||
+                (isSpanishTrack && latinoMarkerRegex.containsMatchIn(name))
 
             val isExplicitCastellano = bcp in castellanoCodes ||
                 bcp.startsWith("es-es") ||
                 name.contains("castellano") ||
                 name.contains("españa") ||
                 name.contains("espana") ||
-                name.contains("castilian")
+                name.contains("castilian") ||
+                (isSpanishTrack && castellanoMarkerRegex.containsMatchIn(name))
 
-            val isGenericSpanish = !isLatino && !isExplicitCastellano && (
-                lang in spanishCodes || bcp.startsWith("es") ||
-                    name.contains("español") || name.contains("espanol") || name.contains("spanish")
-                )
+            val isGenericSpanish = !isLatino && !isExplicitCastellano && isSpanishTrack
 
             if (isLatino) {
                 hasLatino = true

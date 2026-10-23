@@ -22,7 +22,7 @@ interface AudioProbeCache {
 internal object AudioProbeCachePolicy {
 
     /** Bump whenever a parser changes semantics; invalidates every entry. */
-    const val PARSER_VERSION = 1
+    const val PARSER_VERSION = 2
 
     /**
      * A header-verified verdict is stable for a week. Longer windows mostly

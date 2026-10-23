@@ -174,8 +174,19 @@ fun StreamInlineBadges(
             borderColor = "#4B5563"
         )
     }
-    val ordered = remember(badges, sizeBadge) {
-        (badges + listOfNotNull(sizeBadge)).sortedBy(::compactBadgePriority)
+    // A probe can report "Sin Latino" while the file still has a Spanish
+    // (Castellano) track. Showing both is contradictory; keep the Spanish
+    // provenance badge and let the verified-Latino state speak for itself.
+    val hasSpanish = badges.any {
+        it.name.contains("CASTELLANO") || it.name.contains("ESPAÑOL")
+    }
+    val displayBadges = if (hasSpanish) {
+        badges.filterNot { it.name.startsWith("🚫 Sin Latino") }
+    } else {
+        badges
+    }
+    val ordered = remember(displayBadges, sizeBadge) {
+        (displayBadges + listOfNotNull(sizeBadge)).sortedBy(::compactBadgePriority)
     }
     if (ordered.isEmpty()) return
 
