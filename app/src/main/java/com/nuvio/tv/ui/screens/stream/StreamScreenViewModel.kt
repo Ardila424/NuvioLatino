@@ -337,10 +337,17 @@ class StreamScreenViewModel @Inject constructor(
         streamFocusProbeJob = viewModelScope.launch {
             delay(FOCUS_PROBE_DELAY_MS)
             ensureActive()
-            val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)
-            if (result is StreamAudioProbeResult.Success) {
-                probedStreamKeys.add(key)
-                applyProbedStreamResult(stream, result)
+            when (val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)) {
+                is StreamAudioProbeResult.Success -> {
+                    probedStreamKeys.add(key)
+                    applyProbedStreamResult(stream, result)
+                }
+                StreamAudioProbeResult.Inconclusive -> {
+                    // Remember inconclusive results too: re-probing them on every
+                    // focus event wastes debrid quota for no new information.
+                    probedStreamKeys.add(key)
+                }
+                is StreamAudioProbeResult.RateLimited -> Unit
             }
         }
     }
@@ -361,16 +368,29 @@ class StreamScreenViewModel @Inject constructor(
                 .filter { NativeStreamBadgeDetector.isRemux(it) }
                 .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
                 .take(BATCH_PROBE_COUNT)
+            var stoppedByRateLimit = false
             for (stream in candidates) {
+                if (stoppedByRateLimit) break
                 ensureActive()
                 val key = stream.badgeMergeKey()
                 if (probedStreamKeys.contains(key)) continue
                 batchProbeSemaphore.withPermit {
                     ensureActive()
-                    val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)
-                    if (result is StreamAudioProbeResult.Success) {
-                        probedStreamKeys.add(key)
-                        applyProbedStreamResult(stream, result)
+                    when (val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)) {
+                        is StreamAudioProbeResult.Success -> {
+                            probedStreamKeys.add(key)
+                            applyProbedStreamResult(stream, result)
+                        }
+                        StreamAudioProbeResult.Inconclusive -> {
+                            probedStreamKeys.add(key)
+                        }
+                        is StreamAudioProbeResult.RateLimited -> {
+                            Log.d(
+                                TAG,
+                                "Batch probe paused: HTTP ${result.httpCode} (cooldown ${result.retryAfterMs}ms)"
+                            )
+                            stoppedByRateLimit = true
+                        }
                     }
                 }
             }
@@ -534,6 +554,8 @@ class StreamScreenViewModel @Inject constructor(
         streamBadgePresentationJob?.cancel()
         streamBadgePresentationRequestId += 1
         streamFocusProbeJob?.cancel()
+        batchProbeJob?.cancel()
+        batchProbeJob = null
         updateUiStateIfChanged { it.copy(isLoading = false) }
     }
 

@@ -1,7 +1,5 @@
 package com.nuvio.tv.core.streams
 
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import android.util.Log
 import com.nuvio.tv.core.debrid.DirectDebridResolveResult
 import com.nuvio.tv.core.debrid.DirectDebridResolver
@@ -23,23 +21,45 @@ sealed class StreamAudioProbeResult {
     data class Success(
         val hasLatino: Boolean,
         val hasCastellano: Boolean,
-        val detectedLanguages: List<String>
+        val detectedLanguages: List<String>,
+        val tracks: List<ProbeAudioTrack> = emptyList(),
+        val provenance: ProbeProvenance = ProbeProvenance.MKV_EBML
     ) : StreamAudioProbeResult() {
         val hasSpanish: Boolean get() = hasLatino || hasCastellano
     }
+
     data object Inconclusive : StreamAudioProbeResult()
+
+    /**
+     * The host asked us to back off (429/403/5xx) or we are still inside the
+     * service cooldown. The caller must stop the batch instead of retrying.
+     */
+    data class RateLimited(
+        val httpCode: Int,
+        val retryAfterMs: Long?
+    ) : StreamAudioProbeResult()
 }
 
 data class ProbeAudioTrack(
     val language: String,
     val languageBcp47: String,
     val name: String,
-    val codec: String
+    val codec: String,
+    val channels: Int? = null,
+    val isDefault: Boolean = false,
+    val isForced: Boolean = false
 )
 
 /**
- * Service that probes a focused stream's remote container header (EBML / MP4)
- * to verify actual embedded audio tracks without downloading the video payload.
+ * Probes a remote container header (EBML / future MP4 / HLS) to verify the
+ * embedded audio tracks without downloading the video payload.
+ *
+ * Safety rules:
+ * - header-only; no [android.media.MediaExtractor] on remote URLs (it can pull
+ *   the whole file on non-faststart MP4s and burn debrid quota);
+ * - a single 256 KB range request per probe;
+ * - a 429/403/5xx puts the whole service into cooldown so the rest of the batch
+ *   stops instead of hammering the host.
  */
 @Singleton
 class StreamAudioProbeService @Inject constructor(
@@ -47,6 +67,9 @@ class StreamAudioProbeService @Inject constructor(
     @Named("addonPermissive") private val okHttpClient: OkHttpClient
 ) {
     private val probeCache = ConcurrentHashMap<String, StreamAudioProbeResult>()
+
+    @Volatile
+    private var cooldownUntilMs: Long = 0L
 
     suspend fun probeStreamAudio(
         stream: Stream,
@@ -56,32 +79,50 @@ class StreamAudioProbeService @Inject constructor(
         val cacheKey = stream.badgeMergeKey()
         probeCache[cacheKey]?.let { return@withContext it }
 
+        remainingCooldownMs()?.let { remaining ->
+            return@withContext StreamAudioProbeResult.RateLimited(
+                httpCode = 429,
+                retryAfterMs = remaining
+            )
+        }
+
         val playableUrl = resolvePlayableUrl(stream, season, episode)
         if (playableUrl.isNullOrBlank()) {
             return@withContext StreamAudioProbeResult.Inconclusive
         }
 
-        val result = withTimeoutOrNull(4500L) {
-            runCatching {
-                // 1. Fast path: Fetch the first 256 KB of the video container header
-                val headerBytes = fetchHeaderBytes(playableUrl)
-                if (headerBytes != null && isEbmlHeader(headerBytes)) {
-                    val tracks = parseMkvAudioTracks(headerBytes)
-                    if (tracks.isNotEmpty()) {
-                        Log.d(TAG, "Parsed ${tracks.size} audio tracks directly from MKV header for ${stream.name}")
-                        return@runCatching evaluateAudioTracks(tracks)
-                    }
-                }
-
-                // 2. Fallback: MediaExtractor
-                probeWithMediaExtractor(playableUrl)
-            }.getOrDefault(StreamAudioProbeResult.Inconclusive)
+        val result = withTimeoutOrNull(PROBE_TIMEOUT_MS) {
+            probeUrl(playableUrl)
         } ?: StreamAudioProbeResult.Inconclusive
 
-        if (result is StreamAudioProbeResult.Success) {
+        // Cache every terminal outcome. Inconclusive results are cached too so
+        // focus events don't re-probe the same stream over and over. RateLimited
+        // is host-wide and is handled by the cooldown instead.
+        if (result !is StreamAudioProbeResult.RateLimited) {
             probeCache[cacheKey] = result
         }
         result
+    }
+
+    private fun remainingCooldownMs(): Long? {
+        val remaining = cooldownUntilMs - System.currentTimeMillis()
+        return remaining.takeIf { it > 0L }
+    }
+
+    private fun probeUrl(url: String): StreamAudioProbeResult {
+        val fetch = fetchHeaderBytes(url)
+        fetch.rateLimited?.let { return it }
+        val headerBytes = fetch.bytes ?: return StreamAudioProbeResult.Inconclusive
+
+        if (isEbmlHeader(headerBytes)) {
+            val tracks = parseMkvAudioTracks(headerBytes)
+            if (tracks.isNotEmpty()) {
+                Log.d(TAG, "Parsed ${tracks.size} audio tracks from MKV header")
+                return evaluateAudioTracks(tracks, ProbeProvenance.MKV_EBML)
+            }
+        }
+
+        return StreamAudioProbeResult.Inconclusive
     }
 
     private fun isEbmlHeader(bytes: ByteArray): Boolean =
@@ -91,26 +132,59 @@ class StreamAudioProbeService @Inject constructor(
             bytes[2] == 0xDF.toByte() &&
             bytes[3] == 0xA3.toByte()
 
-    private fun fetchHeaderBytes(url: String): ByteArray? {
+    private data class HeaderFetch(
+        val bytes: ByteArray?,
+        val rateLimited: StreamAudioProbeResult.RateLimited? = null
+    )
+
+    private fun fetchHeaderBytes(url: String): HeaderFetch {
+        // Derive a client with a hard call timeout so a stalled CDN cannot keep
+        // an IO thread (and a debrid range request) alive past the probe budget.
+        // newBuilder() shares the dispatcher and connection pool with the
+        // injected client, so this is cheap.
+        val probeClient = okHttpClient.newBuilder()
+            .callTimeout(PROBE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .build()
         return runCatching {
             val request = Request.Builder()
                 .url(url)
-                .header("Range", "bytes=0-262143")
+                .header("Range", "bytes=0-${HEADER_RANGE_BYTES - 1}")
                 .build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful && response.code != 206) return@use null
-                val source = response.body?.source() ?: return@use null
+            probeClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val outcome = ProbeHttpPolicy.classify(response.code)
+                    if (ProbeHttpPolicy.stopsBatch(outcome)) {
+                        val cooldown = ProbeHttpPolicy.cooldownMs(
+                            outcome = outcome,
+                            retryAfterHeader = response.header("Retry-After")
+                        )
+                        cooldownUntilMs = System.currentTimeMillis() + cooldown
+                        Log.w(TAG, "Probe stopped: HTTP ${response.code}, cooldown ${cooldown}ms")
+                        return HeaderFetch(
+                            bytes = null,
+                            rateLimited = StreamAudioProbeResult.RateLimited(
+                                httpCode = response.code,
+                                retryAfterMs = cooldown
+                            )
+                        )
+                    }
+                    return HeaderFetch(bytes = null)
+                }
+
+                val source = response.body.source()
                 val buffer = Buffer()
-                val bytesToRead = 262144L
                 var totalRead = 0L
-                while (totalRead < bytesToRead && !source.exhausted()) {
-                    val read = source.read(buffer, bytesToRead - totalRead)
+                while (totalRead < HEADER_RANGE_BYTES && !source.exhausted()) {
+                    val read = source.read(buffer, HEADER_RANGE_BYTES - totalRead)
                     if (read == -1L) break
                     totalRead += read
                 }
-                buffer.readByteArray()
+                HeaderFetch(bytes = buffer.readByteArray())
             }
-        }.getOrNull()
+        }.getOrElse { error ->
+            Log.d(TAG, "Header fetch failed: ${error.message}")
+            HeaderFetch(bytes = null)
+        }
     }
 
     fun parseMkvAudioTracks(buffer: ByteArray): List<ProbeAudioTrack> {
@@ -148,6 +222,9 @@ class StreamAudioProbeService @Inject constructor(
                 var bcp = ""
                 var name = ""
                 var codec = ""
+                var channels: Int? = null
+                var isDefault = false
+                var isForced = false
 
                 while (tPos < elEnd) {
                     val (subId, subIdLen) = readElementId(buffer, tPos) ?: break
@@ -177,6 +254,20 @@ class StreamAudioProbeService @Inject constructor(
                         0x86 -> { // CodecID
                             codec = String(buffer, subContent, subLen, Charsets.US_ASCII)
                         }
+                        0x9F -> { // Channels
+                            var v = 0
+                            for (i in 0 until subLen) {
+                                v = (v shl 8) or (buffer[subContent + i].toInt() and 0xFF)
+                            }
+                            channels = v.takeIf { it > 0 }
+                        }
+                        // FlagDefault (0x88) and FlagForced (0x55AA) are uint elements
+                        0x88 -> {
+                            isDefault = subLen > 0 && buffer[subContent] != 0.toByte()
+                        }
+                        0x55AA -> {
+                            isForced = subLen > 0 && buffer[subContent] != 0.toByte()
+                        }
                     }
                     val nextTPos = subContent.toLong() + subSize
                     if (nextTPos <= tPos || nextTPos > elEnd) break
@@ -189,7 +280,10 @@ class StreamAudioProbeService @Inject constructor(
                             language = lang.trim(),
                             languageBcp47 = bcp.trim(),
                             name = name.trim(),
-                            codec = codec.trim()
+                            codec = codec.trim(),
+                            channels = channels,
+                            isDefault = isDefault,
+                            isForced = isForced
                         )
                     )
                 }
@@ -200,7 +294,10 @@ class StreamAudioProbeService @Inject constructor(
         return tracks
     }
 
-    internal fun evaluateAudioTracks(tracks: List<ProbeAudioTrack>): StreamAudioProbeResult {
+    internal fun evaluateAudioTracks(
+        tracks: List<ProbeAudioTrack>,
+        provenance: ProbeProvenance = ProbeProvenance.MKV_EBML
+    ): StreamAudioProbeResult {
         if (tracks.isEmpty()) return StreamAudioProbeResult.Inconclusive
 
         val latinoCodes = setOf(
@@ -247,8 +344,8 @@ class StreamAudioProbeService @Inject constructor(
 
             val isGenericSpanish = !isLatino && !isExplicitCastellano && (
                 lang in spanishCodes || bcp.startsWith("es") ||
-                name.contains("español") || name.contains("espanol") || name.contains("spanish")
-            )
+                    name.contains("español") || name.contains("espanol") || name.contains("spanish")
+                )
 
             if (isLatino) {
                 hasLatino = true
@@ -266,43 +363,10 @@ class StreamAudioProbeService @Inject constructor(
         return StreamAudioProbeResult.Success(
             hasLatino = hasLatino,
             hasCastellano = hasCastellano,
-            detectedLanguages = distinctDetected
+            detectedLanguages = distinctDetected,
+            tracks = tracks,
+            provenance = provenance
         )
-    }
-
-    private fun probeWithMediaExtractor(playableUrl: String): StreamAudioProbeResult {
-        return runCatching {
-            val extractor = MediaExtractor()
-            try {
-                extractor.setDataSource(playableUrl)
-                val trackCount = extractor.trackCount
-                val tracks = mutableListOf<ProbeAudioTrack>()
-
-                for (i in 0 until trackCount) {
-                    val format = extractor.getTrackFormat(i)
-                    val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
-                    if (mime.startsWith("audio/")) {
-                        val lang = if (format.containsKey(MediaFormat.KEY_LANGUAGE)) {
-                            format.getString(MediaFormat.KEY_LANGUAGE).orEmpty()
-                        } else ""
-                        val title = if (format.containsKey("title")) {
-                            format.getString("title").orEmpty()
-                        } else ""
-                        tracks.add(
-                            ProbeAudioTrack(
-                                language = lang,
-                                languageBcp47 = if (lang.contains("-")) lang else "",
-                                name = title,
-                                codec = mime
-                            )
-                        )
-                    }
-                }
-                evaluateAudioTracks(tracks)
-            } finally {
-                extractor.release()
-            }
-        }.getOrDefault(StreamAudioProbeResult.Inconclusive)
     }
 
     private fun readElementId(buffer: ByteArray, offset: Int): Pair<Int, Int>? {
@@ -365,5 +429,13 @@ class StreamAudioProbeService @Inject constructor(
             }
         }
         return null
+    }
+
+    private companion object {
+        /** 256 KB header window. */
+        const val HEADER_RANGE_BYTES = 262_144L
+
+        /** Per-probe wall clock budget. */
+        const val PROBE_TIMEOUT_MS = 4_500L
     }
 }
