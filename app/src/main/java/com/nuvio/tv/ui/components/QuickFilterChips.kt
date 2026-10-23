@@ -59,21 +59,23 @@ fun QuickFilterChips(
     modifier: Modifier = Modifier
 ) {
     var filterCounts by remember(allStreams) {
-        mutableStateOf(
-            Triple(0, 0, 0)
-        )
+        mutableStateOf(List(4) { 0 })
     }
 
     LaunchedEffect(allStreams) {
         if (allStreams.isEmpty()) {
-            filterCounts = Triple(0, 0, 0)
+            filterCounts = List(4) { 0 }
             return@LaunchedEffect
         }
         val counts = withContext(Dispatchers.Default) {
-            val remux = allStreams.count { NativeStreamBadgeDetector.isRemux(it) }
-            val spanish = allStreams.count { NativeStreamBadgeDetector.isSpanishOrLatino(it) }
-            val uhd = allStreams.count { NativeStreamBadgeDetector.is4K(it) }
-            Triple(remux, spanish, uhd)
+            listOf(
+                allStreams.count { stream ->
+                    stream.badges.any { it.name.contains("LATINO (Verificado)") }
+                },
+                allStreams.count { NativeStreamBadgeDetector.isSpanishOrLatino(it) },
+                allStreams.count { NativeStreamBadgeDetector.isRemux(it) },
+                allStreams.count { NativeStreamBadgeDetector.is4K(it) }
+            )
         }
         filterCounts = counts
     }
@@ -81,13 +83,34 @@ fun QuickFilterChips(
     val options = remember(allStreams.size, filterCounts) {
         listOf(
             QuickFilterOption(StreamQuickFilter.ALL, "", R.string.stream_filter_all, allStreams.size),
-            QuickFilterOption(StreamQuickFilter.REMUX, "💎 ", R.string.stream_filter_remux, filterCounts.first),
-            QuickFilterOption(StreamQuickFilter.SPANISH, "🇲🇽 ", R.string.stream_filter_spanish, filterCounts.second),
-            QuickFilterOption(StreamQuickFilter.UHD_4K, "📺 ", R.string.stream_filter_4k, filterCounts.third)
+            QuickFilterOption(
+                StreamQuickFilter.LATINO_VERIFIED,
+                "🇲🇽 ",
+                R.string.stream_filter_latino_verified,
+                filterCounts.getOrElse(0) { 0 }
+            ),
+            QuickFilterOption(
+                StreamQuickFilter.SPANISH,
+                "🌎 ",
+                R.string.stream_filter_spanish,
+                filterCounts.getOrElse(1) { 0 }
+            ),
+            QuickFilterOption(
+                StreamQuickFilter.REMUX,
+                "💎 ",
+                R.string.stream_filter_remux,
+                filterCounts.getOrElse(2) { 0 }
+            ),
+            QuickFilterOption(
+                StreamQuickFilter.UHD_4K,
+                "📺 ",
+                R.string.stream_filter_4k,
+                filterCounts.getOrElse(3) { 0 }
+            )
         )
     }
 
-    val internalRequesters = remember { List(4) { FocusRequester() } }
+    val internalRequesters = remember { List(5) { FocusRequester() } }
     val focusRequesters = externalFocusRequesters ?: internalRequesters
 
     var focusedIndex by remember { mutableIntStateOf(0) }

@@ -1776,8 +1776,14 @@
 
 
     <string name="stream_filter_remux">Solo REMUX</string>
+    <string name="stream_filter_latino_verified">Solo Latino</string>
     <string name="stream_filter_spanish">Español / Latino</string>
     <string name="stream_filter_4k">4K UHD</string>
+
+    <string name="stream_sort_label">Orden:</string>
+    <string name="stream_sort_best_latino">Mejor con Latino</string>
+    <string name="stream_sort_quality">Calidad</string>
+    <string name="stream_sort_size">Tamaño</string>
 
     <string name="stream_retry">Reintentar</string>
     <string name="stream_no_streams">No se encontraron fuentes</string>

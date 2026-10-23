@@ -468,10 +468,12 @@ fun StreamScreen(
                     showAddonLogo = streamBadgeSettings.showAddonLogo,
                     allStreams = uiState.allStreams,
                     selectedQuickFilter = uiState.selectedQuickFilter,
+                    selectedSortMode = uiState.selectedSortMode,
                     badgePlacement = streamBadgeSettings.badgePlacement,
                     hasBadgeRules = streamBadgeSettings.rules.hasImport,
                     onAddonFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnAddonFilterSelected(it)) },
                     onQuickFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnQuickFilterSelected(it)) },
+                    onSortModeSelected = { viewModel.onEvent(StreamScreenEvent.OnSortModeSelected(it)) },
                     onStreamFocused = { viewModel.onEvent(StreamScreenEvent.OnStreamFocused(it)) },
                     onRefresh = { viewModel.onEvent(StreamScreenEvent.OnRefresh) },
                     sharedStream = sharedStream,
@@ -767,7 +769,9 @@ private fun RightStreamSection(
     selectedAddonFilter: String?,
     allStreams: List<Stream> = emptyList(),
     selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
+    selectedSortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO,
     onQuickFilterSelected: (StreamQuickFilter) -> Unit = {},
+    onSortModeSelected: (StreamSortMode) -> Unit = {},
     showFileSizeBadges: Boolean,
     showAddonLogo: Boolean,
     badgePlacement: StreamBadgePlacement,
@@ -806,7 +810,8 @@ private fun RightStreamSection(
     val refreshFocusRequester = remember { FocusRequester() }
     val allFocusRequester = remember { FocusRequester() }
     val addonFocusRequesters = remember { mutableMapOf<String, FocusRequester>() }
-    val quickFilterFocusRequesters = remember { List(4) { FocusRequester() } }
+    val quickFilterFocusRequesters = remember { List(5) { FocusRequester() } }
+    val sortFocusRequesters = remember { List(StreamSortMode.values().size) { FocusRequester() } }
     val chipFocusRequesters = remember(orderedAddonNames) {
         // Remove stale entries for addons that no longer exist
         addonFocusRequesters.keys.retainAll(orderedAddonNames.toSet())
@@ -973,8 +978,29 @@ private fun RightStreamSection(
                             requestChipFocus(idx)
                         },
                         onDownKey = {
-                            firstStreamFocusRequestId += 1
+                            runCatching {
+                                sortFocusRequesters
+                                    .getOrNull(selectedSortMode.ordinal)
+                                    ?.requestFocus()
+                            }
                         }
+                    )
+                }
+
+                if (activeStreamsForFilter.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(NuvioTheme.spacing.xs))
+                    com.nuvio.tv.ui.components.StreamSortChips(
+                        selectedMode = selectedSortMode,
+                        onModeSelected = onSortModeSelected,
+                        focusRequesters = sortFocusRequesters,
+                        onUpKey = {
+                            runCatching {
+                                quickFilterFocusRequesters
+                                    .getOrNull(selectedQuickFilter.ordinal)
+                                    ?.requestFocus()
+                            }
+                        },
+                        onDownKey = { firstStreamFocusRequestId += 1 }
                     )
                 }
 
@@ -1022,7 +1048,8 @@ private fun RightStreamSection(
                                 onRequestChipFocus = { requestChipFocus(it) },
                                 selectedQuickFilter = selectedQuickFilter,
                                 onRequestQuickFilterFocus = if (activeStreamsForFilter.isNotEmpty()) {{
-                                    val quickIdx = selectedQuickFilter.ordinal.coerceIn(0, 3)
+                                    val quickIdx = selectedQuickFilter.ordinal
+                                        .coerceIn(0, quickFilterFocusRequesters.lastIndex)
                                     quickFilterFocusRequesters.getOrNull(quickIdx)?.requestFocus()
                                 }} else null,
                                 onUserNavigatedFromFirstResult = {

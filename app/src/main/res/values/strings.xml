@@ -1773,8 +1773,14 @@
 
 
     <string name="stream_filter_remux">REMUX</string>
+    <string name="stream_filter_latino_verified">Latino only</string>
     <string name="stream_filter_spanish">Latino / ES</string>
     <string name="stream_filter_4k">4K UHD</string>
+
+    <string name="stream_sort_label">Sort:</string>
+    <string name="stream_sort_best_latino">Best with Latino</string>
+    <string name="stream_sort_quality">Quality</string>
+    <string name="stream_sort_size">Size</string>
 
     <string name="stream_retry">Retry</string>
     <string name="stream_no_streams">No streams found</string>

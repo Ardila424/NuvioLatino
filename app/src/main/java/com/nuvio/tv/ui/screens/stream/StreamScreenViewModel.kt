@@ -17,6 +17,7 @@ import com.nuvio.tv.core.torrent.TorrentService
 import com.nuvio.tv.core.torrent.TorrentState
 import com.nuvio.tv.core.player.StreamAutoPlayPolicy
 import com.nuvio.tv.core.player.StreamAutoPlaySelector
+import com.nuvio.tv.core.latino.LatinoStreamRanker
 import com.nuvio.tv.core.tracking.TrackingMediaKind
 import com.nuvio.tv.core.tracking.TrackingMediaReference
 import com.nuvio.tv.core.tracking.TrackingScrobbleAction
@@ -277,7 +278,8 @@ class StreamScreenViewModel @Inject constructor(
                         val fullFiltered = computeFilteredStreams(
                             updatedAllStreams,
                             state.selectedAddonFilter,
-                            state.selectedQuickFilter
+                            state.selectedQuickFilter,
+                            state.selectedSortMode
                         )
                         streamFilterFullList = fullFiltered
                         val pageEnd = state.filteredStreams.size
@@ -311,7 +313,8 @@ class StreamScreenViewModel @Inject constructor(
                 val fullFiltered = computeFilteredStreams(
                     updatedAllStreams,
                     state.selectedAddonFilter,
-                    state.selectedQuickFilter
+                    state.selectedQuickFilter,
+                    state.selectedSortMode
                 )
                 streamFilterFullList = fullFiltered
                 val pageEnd = state.filteredStreams.size
@@ -441,17 +444,24 @@ class StreamScreenViewModel @Inject constructor(
             val fullFiltered = computeFilteredStreams(
                 updatedAllStreams,
                 state.selectedAddonFilter,
-                state.selectedQuickFilter
+                state.selectedQuickFilter,
+                state.selectedSortMode
             )
-            streamFilterFullList = fullFiltered
+            // Badges arrive one by one while the user is browsing: keep the
+            // visible order stable and append newly matching rows at the end so
+            // focus never jumps under the user.
+            val visibleKeys = state.filteredStreams.mapTo(HashSet()) { it.badgeMergeKey() }
+            val byKey = fullFiltered.associateBy { it.badgeMergeKey() }
+            val stableOrder = state.filteredStreams.mapNotNull { byKey[it.badgeMergeKey()] } +
+                fullFiltered.filter { it.badgeMergeKey() !in visibleKeys }
+            streamFilterFullList = stableOrder
             val pageEnd = state.filteredStreams.size
-                .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(fullFiltered.size))
-                .coerceAtMost(fullFiltered.size)
+                .coerceAtLeast(STREAM_FILTER_PAGE_SIZE.coerceAtMost(stableOrder.size))
+                .coerceAtMost(stableOrder.size)
             state.copy(
                 addonStreams = updatedAddonStreams,
                 allStreams = updatedAllStreams,
-                filteredStreams = if (pageEnd >= fullFiltered.size) fullFiltered
-                    else fullFiltered.subList(0, pageEnd)
+                filteredStreams = stableOrder.take(pageEnd)
             )
         }
     }
@@ -493,6 +503,7 @@ class StreamScreenViewModel @Inject constructor(
         when (event) {
             is StreamScreenEvent.OnAddonFilterSelected -> filterByAddon(event.addonName)
             is StreamScreenEvent.OnQuickFilterSelected -> filterByQuickFilter(event.filter)
+            is StreamScreenEvent.OnSortModeSelected -> setSortMode(event.mode)
             is StreamScreenEvent.OnStreamSelected -> {
                 cancelStreamsLoad()
             }
@@ -845,7 +856,13 @@ class StreamScreenViewModel @Inject constructor(
 
                 val currentFilter = _uiState.value.selectedAddonFilter
                 val currentQuickFilter = _uiState.value.selectedQuickFilter
-                val fullFiltered = computeFilteredStreams(allStreams, currentFilter, currentQuickFilter)
+                val currentSortMode = _uiState.value.selectedSortMode
+                val fullFiltered = computeFilteredStreams(
+                    allStreams,
+                    currentFilter,
+                    currentQuickFilter,
+                    currentSortMode
+                )
                 streamFilterFullList = fullFiltered
                 val currentPageSize = _uiState.value.filteredStreams.size
                 val isFirstLoad = currentPageSize == 0
@@ -952,7 +969,8 @@ class StreamScreenViewModel @Inject constructor(
                                 val fullFiltered = computeFilteredStreams(
                                     updatedAllStreams,
                                     state.selectedAddonFilter,
-                                    state.selectedQuickFilter
+                                    state.selectedQuickFilter,
+                                    state.selectedSortMode
                                 )
                                 streamFilterFullList = fullFiltered
                                 val pageEnd = state.filteredStreams.size
@@ -1448,18 +1466,13 @@ class StreamScreenViewModel @Inject constructor(
 
     private var streamFilterJob: Job? = null
 
-    private data class StreamSortAttributes(
-        val isLatino: Boolean,
-        val isSpanishOrLatino: Boolean,
-        val sizeBytes: Long
-    )
-
     private fun filterByAddon(addonName: String?) {
         streamFilterExpandJob?.cancel()
         streamFilterJob?.cancel()
         val currentAddon = _uiState.value.selectedAddonFilter
         if (currentAddon == addonName) return
         val currentQuick = _uiState.value.selectedQuickFilter
+        val currentSort = _uiState.value.selectedSortMode
         val streams = _uiState.value.allStreams
 
         updateUiStateIfChanged { state ->
@@ -1467,7 +1480,7 @@ class StreamScreenViewModel @Inject constructor(
         }
 
         streamFilterJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            val fullFiltered = computeFilteredStreams(streams, addonName, currentQuick)
+            val fullFiltered = computeFilteredStreams(streams, addonName, currentQuick, currentSort)
             ensureActive()
             streamFilterFullList = fullFiltered
             val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
@@ -1495,6 +1508,7 @@ class StreamScreenViewModel @Inject constructor(
             quickFilter
         }
         val currentAddon = _uiState.value.selectedAddonFilter
+        val currentSort = _uiState.value.selectedSortMode
         val streams = _uiState.value.allStreams
 
         updateUiStateIfChanged { state ->
@@ -1502,7 +1516,7 @@ class StreamScreenViewModel @Inject constructor(
         }
 
         streamFilterJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            val fullFiltered = computeFilteredStreams(streams, currentAddon, nextFilter)
+            val fullFiltered = computeFilteredStreams(streams, currentAddon, nextFilter, currentSort)
             ensureActive()
             streamFilterFullList = fullFiltered
             val paginatedStreams = if (fullFiltered.size > STREAM_FILTER_PAGE_SIZE) {
@@ -1534,7 +1548,8 @@ class StreamScreenViewModel @Inject constructor(
     private fun computeFilteredStreams(
         allStreams: List<Stream>,
         addonFilter: String?,
-        quickFilter: StreamQuickFilter
+        quickFilter: StreamQuickFilter,
+        sortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO
     ): List<Stream> {
         val byAddon = if (addonFilter == null) {
             allStreams
@@ -1543,7 +1558,10 @@ class StreamScreenViewModel @Inject constructor(
         }
 
         val filtered = when (quickFilter) {
-            StreamQuickFilter.ALL -> return byAddon
+            StreamQuickFilter.ALL -> byAddon
+            StreamQuickFilter.LATINO_VERIFIED -> byAddon.filter {
+                LatinoStreamRanker.isVerifiedLatino(it)
+            }
             StreamQuickFilter.REMUX -> byAddon.filter { NativeStreamBadgeDetector.isRemux(it) }
             StreamQuickFilter.SPANISH -> byAddon.filter { isStreamSpanishOrLatino(it) }
             StreamQuickFilter.UHD_4K -> byAddon.filter { NativeStreamBadgeDetector.is4K(it) }
@@ -1551,29 +1569,61 @@ class StreamScreenViewModel @Inject constructor(
 
         if (filtered.size <= 1) return filtered
 
-        val attrMap = HashMap<Stream, StreamSortAttributes>(filtered.size)
+        val attrMap = HashMap<Stream, LatinoStreamRanker.Attributes>(filtered.size)
         for (stream in filtered) {
-            val latino = isStreamLatino(stream)
-            val spanish = if (latino) true else isStreamSpanishOrLatino(stream)
-            val size = StreamTextSizeParser.effectiveSizeBytes(stream) ?: 0L
-            attrMap[stream] = StreamSortAttributes(latino, spanish, size)
+            attrMap[stream] = LatinoStreamRanker.attributes(stream, latinAlternativeTitles)
         }
 
-        val comparator = Comparator<Stream> { a, b ->
-            val attrA = attrMap[a]
-            val attrB = attrMap[b]
-            if (attrA != null && attrB != null) {
-                if (attrA.isLatino != attrB.isLatino) {
-                    return@Comparator if (attrA.isLatino) -1 else 1
-                }
-                if (attrA.isSpanishOrLatino != attrB.isSpanishOrLatino) {
-                    return@Comparator if (attrA.isSpanishOrLatino) -1 else 1
-                }
-                attrB.sizeBytes.compareTo(attrA.sizeBytes)
-            } else 0
+        val comparator: Comparator<Stream> = when (sortMode) {
+            StreamSortMode.MEJOR_CON_LATINO -> compareByDescending<Stream> {
+                attrMap[it]?.latinoScore ?: 0
+            }.thenByDescending { attrMap[it]?.qualityScore ?: 0 }
+                .thenByDescending { attrMap[it]?.sizeBytes ?: 0L }
+
+            StreamSortMode.CALIDAD -> compareByDescending<Stream> {
+                attrMap[it]?.qualityScore ?: 0
+            }.thenByDescending { attrMap[it]?.hdrScore ?: 0 }
+                .thenByDescending { attrMap[it]?.sizeBytes ?: 0L }
+
+            StreamSortMode.TAMANO -> compareByDescending<Stream> {
+                attrMap[it]?.sizeBytes ?: 0L
+            }
         }
 
         return filtered.sortedWith(comparator)
+    }
+
+    private fun setSortMode(mode: StreamSortMode) {
+        if (_uiState.value.selectedSortMode == mode) return
+        updateUiStateIfChanged { it.copy(selectedSortMode = mode) }
+
+        val state = _uiState.value
+        val streams = state.allStreams
+        if (streams.isEmpty()) return
+
+        streamFilterJob?.cancel()
+        streamFilterJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val full = computeFilteredStreams(
+                streams,
+                state.selectedAddonFilter,
+                state.selectedQuickFilter,
+                mode
+            )
+            ensureActive()
+            streamFilterFullList = full
+            val paginated = if (full.size > STREAM_FILTER_PAGE_SIZE) {
+                full.subList(0, STREAM_FILTER_PAGE_SIZE)
+            } else {
+                full
+            }
+            updateUiStateIfChanged { current ->
+                if (current.selectedSortMode == mode) {
+                    current.copy(filteredStreams = paginated)
+                } else {
+                    current
+                }
+            }
+        }
     }
 
     fun expandFilteredStreamsIfNeeded() {
