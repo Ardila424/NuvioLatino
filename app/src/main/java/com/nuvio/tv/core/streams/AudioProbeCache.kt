@@ -30,7 +30,7 @@ internal object AudioProbeCachePolicy {
     /** Inconclusive/failed results are retried sooner in case the source recovers. */
     const val INCONCLUSIVE_TTL_MS = 6L * 60L * 60L * 1000L
 
-    const val MAX_ENTRIES = 2_000
+    const val MAX_ENTRIES = 1_000
 
     fun cacheKey(stream: Stream): String {
         val identity = stream.getEffectiveInfoHash()?.lowercase()
