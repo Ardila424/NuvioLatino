@@ -1047,6 +1047,7 @@ private fun RightStreamSection(
                                 orderedAddonNames = orderedAddonNames,
                                 onRequestChipFocus = { requestChipFocus(it) },
                                 selectedQuickFilter = selectedQuickFilter,
+                                selectedSortMode = selectedSortMode,
                                 onRequestQuickFilterFocus = if (activeStreamsForFilter.isNotEmpty()) {{
                                     val quickIdx = selectedQuickFilter.ordinal
                                         .coerceIn(0, quickFilterFocusRequesters.lastIndex)
@@ -1177,6 +1178,7 @@ private fun StreamsList(
     orderedAddonNames: List<String> = emptyList(),
     onRequestChipFocus: (Int) -> Unit = {},
     selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
+    selectedSortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO,
     onRequestQuickFilterFocus: (() -> Unit)? = null,
     onUserNavigatedFromFirstResult: () -> Unit = {},
     onFocusedStreamKeyChanged: (String?) -> Unit = {},
@@ -1276,6 +1278,18 @@ private fun StreamsList(
         } catch (_: Exception) {
         }
         onRestoreFocusedStreamHandled()
+    }
+
+    // LazyColumn anchors the viewport to the key that was on top. After a sort
+    // change that key usually moves down, so the visible rows look unchanged
+    // until the user navigates. Jump to the top so the new best stream is
+    // immediately visible.
+    var lastSortMode by remember { mutableStateOf(selectedSortMode) }
+    LaunchedEffect(selectedSortMode) {
+        if (lastSortMode != selectedSortMode) {
+            lastSortMode = selectedSortMode
+            runCatching { streamListState.scrollToItem(0) }
+        }
     }
 
     // Load more streams when scrolling near the bottom of the current page.

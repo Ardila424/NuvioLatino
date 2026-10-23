@@ -1602,6 +1602,7 @@ class StreamScreenViewModel @Inject constructor(
 
     private fun setSortMode(mode: StreamSortMode) {
         if (_uiState.value.selectedSortMode == mode) return
+        Log.d(TAG, "Sort mode -> $mode (${_uiState.value.allStreams.size} streams)")
         updateUiStateIfChanged { it.copy(selectedSortMode = mode) }
 
         val state = _uiState.value
