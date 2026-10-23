@@ -340,10 +340,10 @@ class StreamScreenViewModel @Inject constructor(
     private fun onStreamFocused(stream: Stream) {
         streamFocusProbeJob?.cancel()
         if (!latinoFeaturesEnabled) return
-        // The batch stays REMUX-only to protect debrid quota, but a focused
-        // cached source can be verified on its own. This is what upgrades a
-        // 1080p "LATINO ?" card to "LATINO ✓" when its audio track names say
-        // Latino / LAT / MX.
+        // 1080p cards are promoted from their explicit release markers
+        // (Lat/Latino/MX) without any debrid call. Focus probing stays REMUX
+        // only, where reading the real file header is worth the API cost.
+        if (!NativeStreamBadgeDetector.isRemux(stream)) return
         if (!stream.isSafeToProbe()) return
         val key = stream.badgeMergeKey()
         if (probedStreamKeys.contains(key)) return

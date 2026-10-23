@@ -974,16 +974,26 @@ private fun RightStreamSection(
                         StreamOption(mode.name, stringResource(mode.labelRes()))
                     }
                 val latinoProbeStats = remember(activeStreamsForFilter) {
-                    val verified = activeStreamsForFilter.count { stream ->
-                        stream.badges.any { it.name.contains("LATINO (Verificado)") }
+                    val fileVerified = activeStreamsForFilter.count { stream ->
+                        stream.badges.any {
+                            it.name.contains("LATINO (Verificado)") &&
+                                it.tagStyle != "latino-name"
+                        }
+                    }
+                    val nameVerified = activeStreamsForFilter.count { stream ->
+                        stream.badges.any {
+                            it.name.contains("LATINO (Verificado)") &&
+                                it.tagStyle == "latino-name"
+                        }
                     }
                     val probed = activeStreamsForFilter.count { stream ->
                         stream.badges.any {
-                            it.name.contains("LATINO (Verificado)") ||
+                            (it.name.contains("LATINO (Verificado)") &&
+                                it.tagStyle != "latino-name") ||
                                 it.name.startsWith("🚫 Sin Latino")
                         }
                     }
-                    verified to probed
+                    Triple(probed, fileVerified, nameVerified)
                 }
 
                 // Two-row toolbar: source + sort selectors, then the quick filters.
@@ -1063,9 +1073,10 @@ private fun RightStreamSection(
                         Text(
                             text = stringResource(
                                 R.string.stream_filter_latino_hint,
-                                latinoProbeStats.second,
+                                latinoProbeStats.first,
                                 activeStreamsForFilter.size,
-                                latinoProbeStats.first
+                                latinoProbeStats.second,
+                                latinoProbeStats.third
                             ),
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelSmall,
@@ -1595,7 +1606,17 @@ private fun StreamCard(
             native.forEach { merged.putIfAbsent(it.name, it) }
             merged.values.toList()
         }
-        if (showLatinoBadges) allBadges else allBadges.filterNot { it.isLatinoProvenanceBadge() }
+        // The explicit-name detector can add LATINO (Verificado) while an older
+        // plain LATINO is still in stream.badges. Keep only the strongest one.
+        val hasVerifiedLatino = allBadges.any { it.name.contains("LATINO (Verificado)") }
+        val hasNoLatino = allBadges.any { it.name.startsWith("🚫 Sin Latino") }
+        val cleaned = allBadges.filterNot { badge ->
+            (hasNoLatino &&
+                badge.name.contains("LATINO", ignoreCase = true) &&
+                !badge.name.contains("Sin Latino", ignoreCase = true)) ||
+                (hasVerifiedLatino && badge.name == "🇲🇽 LATINO")
+        }
+        if (showLatinoBadges) cleaned else cleaned.filterNot { it.isLatinoProvenanceBadge() }
     }
     var isFocused by remember { mutableStateOf(false) }
 

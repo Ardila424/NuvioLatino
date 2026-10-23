@@ -21,6 +21,16 @@ object NativeStreamBadgeDetector {
         """(?i)(^|[^a-z0-9])(latino|latinos|latin|lat|es-419|es419|spa-lat|spalat|esp-lat|dual[ ._-]?latino|audio[ ._-]?latino|multi[ ._-]?lat)([^a-z0-9]|$)"""
     )
 
+    /**
+     * Markers strong enough to promote a card to LATINO ✓ without reading the
+     * file header. Generic "Spanish"/"Español"/"Multi" are deliberately absent:
+     * those stay LATINO ? because they cannot distinguish Latino from
+     * Castellano. The 1080p card itself usually carries these tokens.
+     */
+    private val EXPLICIT_LATINO_REGEX = Regex(
+        """(?i)(^|[^a-z0-9])(latino|latinos|latam|latin|lat|es-419|es419|es-mx|es-ar|es-co|es-cl|es-pe|es-ve|es-ec|mx|mexico|méxico|arg|argentina|spa-lat|spalat|esp-lat|dual[ ._-]?latino|audio[ ._-]?latino|multi[ ._-]?lat)([^a-z0-9]|$)"""
+    )
+
     private val CASTELLANO_REGEX = Regex(
         """(?i)(^|[^a-z0-9])(castellano|español|espanol|spanish|spa)([^a-z0-9]|$)"""
     )
@@ -38,6 +48,7 @@ object NativeStreamBadgeDetector {
 
         val remux = isRemux(stream)
         val latino = isLatino(stream, latinTitles)
+        val explicitLatino = hasExplicitLatinoMarker(stream)
         val castellano = isCastellano(stream)
         val multi = isMulti(stream)
 
@@ -64,6 +75,16 @@ object NativeStreamBadgeDetector {
             stream.badges.firstOrNull { it.name.startsWith("🚫 Sin Latino") }?.let {
                 badges += it
             }
+        } else if (explicitLatino) {
+            // The release/card explicitly says Latino/LAT/MX. Show the green
+            // check immediately; tagStyle distinguishes it from a probe.
+            badges += StreamBadge(
+                name = "🇲🇽 LATINO (Verificado)",
+                tagColor = "#059669",
+                textColor = "#FFFFFF",
+                borderColor = "#10B981",
+                tagStyle = "latino-name"
+            )
         } else if (latino) {
             badges += StreamBadge(
                 name = "🇲🇽 LATINO",
@@ -230,6 +251,30 @@ object NativeStreamBadgeDetector {
             return true
         }
         return candidateTexts(stream).any { LATINO_REGEX.containsMatchIn(it) }
+    }
+
+    /**
+     * True only when the release/card itself names a Latin American variant
+     * (Latino, LAT, LATAM, MX, Mexico, ARG, es-419, ...). This never looks at
+     * subtitles and never treats generic Spanish as Latino.
+     */
+    fun hasExplicitLatinoMarker(stream: Stream): Boolean {
+        if (stream.badges.any { it.name.startsWith("🚫 Sin Latino") }) return false
+        if (hasExplicitLanguagesWithoutSpanish(stream)) return false
+        if (hasExplicitFlagsWithoutSpanish(stream)) return false
+
+        val text = candidateTexts(stream).joinToString(" ")
+        if (text.contains("🇲🇽")) return true
+
+        val explicitRegions = setOf(
+            "la", "lat", "latam", "latin", "latino", "es-419", "es419",
+            "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-ve", "es-ec",
+            "es-us", "es-la", "es-005", "mx", "mexico", "méxico", "arg"
+        )
+        val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
+        if (parsedLangs.any { it.lowercase() in explicitRegions }) return true
+
+        return candidateTexts(stream).any { EXPLICIT_LATINO_REGEX.containsMatchIn(it) }
     }
 
     fun isCastellano(stream: Stream): Boolean {

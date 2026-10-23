@@ -81,7 +81,7 @@ fun QuickFilterChips(
             // not imply that every source in the list was checked.
             val probed = allStreams.count { stream ->
                 stream.badges.any {
-                    it.name.contains("LATINO (Verificado)") ||
+                    (it.name.contains("LATINO (Verificado)") && it.tagStyle != "latino-name") ||
                         it.name.startsWith("🚫 Sin Latino")
                 }
             }
@@ -176,14 +176,7 @@ fun QuickFilterChips(
         itemsIndexed(options) { _, option ->
             val isSelected = selectedFilter == option.filter
             val labelText = stringResource(option.labelRes)
-            val probedCount = filterCounts.getOrElse(4) { 0 }
-            val displayText = if (
-                option.filter == StreamQuickFilter.LATINO_VERIFIED && probedCount > 0
-            ) {
-                "${option.icon}$labelText (${option.count}/$probedCount)"
-            } else {
-                "${option.icon}$labelText (${option.count})"
-            }
+            val displayText = "${option.icon}$labelText (${option.count})"
 
             var isFocused by remember { mutableStateOf(false) }
             val textColor = when {

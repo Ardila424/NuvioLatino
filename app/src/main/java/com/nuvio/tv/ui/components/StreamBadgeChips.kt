@@ -270,6 +270,8 @@ private fun compactBadgeLabel(badge: StreamBadge): String = when {
 
 private fun compactBadgeColors(badge: StreamBadge): Triple<Color, Color, Color> = when {
     badge.tagStyle == "tech-lang" -> Triple(Color(0xFF0F766E), Color.White, Color(0xFF14B8A6))
+    badge.name.contains("LATINO (Verificado)") && badge.tagStyle == "latino-name" ->
+        Triple(Color.Transparent, Color(0xFF10B981), Color(0xFF10B981))
     badge.name.contains("LATINO (Verificado)") -> Triple(Color(0xFF059669), Color.White, Color(0xFF10B981))
     badge.name == "🇲🇽 LATINO" -> Triple(Color.Transparent, Color(0xFFF59E0B), Color(0xFFF59E0B))
     badge.name.startsWith("🚫 Sin Latino") -> Triple(Color.Transparent, Color(0xFF9CA3AF), Color(0xFF4B5563))

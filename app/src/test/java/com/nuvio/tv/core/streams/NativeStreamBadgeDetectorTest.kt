@@ -30,7 +30,11 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isLatino(stream))
         assertFalse(NativeStreamBadgeDetector.isRemux(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
-        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
+        assertTrue(
+            badges.any {
+                it.name == "🇲🇽 LATINO (Verificado)" && it.tagStyle == "latino-name"
+            }
+        )
     }
 
     @Test
@@ -99,7 +103,21 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
         assertTrue(badges.any { it.name == "💎 REMUX" })
-        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
+        assertTrue(
+            badges.any {
+                it.name == "🇲🇽 LATINO (Verificado)" && it.tagStyle == "latino-name"
+            }
+        )
+    }
+
+    @Test
+    fun `explicit MX marker promotes to name verified`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.DDP5.1.MX.x264.mkv"
+        )
+        val badge = NativeStreamBadgeDetector.detectBadges(stream)
+            .first { it.name.contains("LATINO") }
+        assertEquals("latino-name", badge.tagStyle)
     }
 
     @Test
