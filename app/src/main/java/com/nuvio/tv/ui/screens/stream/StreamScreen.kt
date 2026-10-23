@@ -19,6 +19,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1514,7 +1516,7 @@ private fun StreamsList(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun StreamCard(
     stream: Stream,
@@ -1624,14 +1626,17 @@ private fun StreamCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
                 ) {
-                Row(
-                    modifier = Modifier.align(streamName.contentTextDirection().toAbsoluteAlignment()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+                // Title and marks share one flow: short names keep every badge
+                // on the title line, and only the real overflow wraps to a
+                // second line. No "+N" counter, so nothing is hidden.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs),
+                    itemVerticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = streamName,
-                        modifier = Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.titleSmall.copy(
                             textDirection = streamName.contentTextDirection()
                         ),
@@ -1650,23 +1655,7 @@ private fun StreamCard(
                     StreamInlineBadges(
                         badges = stream.badges,
                         fileSizeBytes = stream.behaviorHints?.videoSize,
-                        showFileSizeBadge = showFileSizeBadges,
-                        showOverflow = !isFocused
-                    )
-                }
-
-                // The compact strip shows the four most important marks and a
-                // +N counter. When the card is focused, reveal the rest in a
-                // second line so "+N" is never a dead end.
-                if (isFocused) {
-                    StreamInlineBadges(
-                        badges = stream.badges,
-                        fileSizeBytes = stream.behaviorHints?.videoSize,
-                        showFileSizeBadge = showFileSizeBadges,
-                        maxVisible = Int.MAX_VALUE,
-                        startIndex = com.nuvio.tv.ui.components.INLINE_BADGE_LIMIT,
-                        showOverflow = false,
-                        modifier = Modifier.padding(top = NuvioTheme.spacing.xxs)
+                        showFileSizeBadge = showFileSizeBadges
                     )
                 }
 

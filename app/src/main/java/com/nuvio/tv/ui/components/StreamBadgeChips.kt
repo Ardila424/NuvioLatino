@@ -146,17 +146,15 @@ fun StreamBadgeChips(
 }
 
 /**
- * Compact inline badge strip used inside the stream card title row. Keeps the
- * whole card height unchanged while surfacing the release's technical marks.
+ * Emits the compact badges as individual flow items. The card places them in a
+ * [androidx.compose.foundation.layout.FlowRow] together with the title, so all
+ * marks stay on the title line when they fit and only the real overflow wraps.
  */
 @Composable
 fun StreamInlineBadges(
     badges: List<StreamBadge>,
     fileSizeBytes: Long? = null,
     showFileSizeBadge: Boolean = false,
-    maxVisible: Int = INLINE_BADGE_LIMIT,
-    startIndex: Int = 0,
-    showOverflow: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val gbTemplate = stringResource(R.string.unit_size_gb)
@@ -179,24 +177,10 @@ fun StreamInlineBadges(
     val ordered = remember(badges, sizeBadge) {
         (badges + listOfNotNull(sizeBadge)).sortedBy(::compactBadgePriority)
     }
-    if (ordered.isEmpty() || startIndex >= ordered.size) return
+    if (ordered.isEmpty()) return
 
-    val visible = ordered.drop(startIndex).take(maxVisible)
-    val overflow = if (showOverflow && startIndex == 0) ordered.size - visible.size else 0
-
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        visible.forEach { badge -> StreamBadgeMark(badge) }
-        if (overflow > 0) {
-            StreamMetaBadge(label = "+$overflow")
-        }
-    }
+    ordered.forEach { badge -> StreamBadgeMark(badge, modifier = modifier) }
 }
-
-internal const val INLINE_BADGE_LIMIT = 4
 
 /** Shared compact mark: brand wordmarks, verified provenance and imported images. */
 @Composable
@@ -241,29 +225,6 @@ internal fun StreamBadgeMark(
                 letterSpacing = 0.2.sp
             ),
             color = foreground,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun StreamMetaBadge(label: String) {
-    Box(
-        modifier = Modifier
-            .height(17.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Color(0xFF4B5563), RoundedCornerShape(4.dp))
-            .padding(horizontal = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 9.sp,
-                lineHeight = 10.sp
-            ),
-            color = Color(0xFFD1D5DB),
             maxLines = 1
         )
     }
