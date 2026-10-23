@@ -95,10 +95,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.nuvio.tv.core.player.ExternalPlayerLauncher
+import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePlacement
 import com.nuvio.tv.core.streams.StreamBadgeSettings
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.ui.components.SourceChipItem
 import com.nuvio.tv.ui.components.SourceChipStatus
 import com.nuvio.tv.ui.components.P2pConsentDialog
@@ -1542,6 +1544,21 @@ private fun StreamCard(
             ?.replace(Regex("\\s*\\r?\\n\\s*"), " · ")
             ?.trim()
     }
+    // Debrid addons initially return placeholders without the release name, so
+    // the presentation pass may have run before the filename/description were
+    // available. Re-detect here (cached per stream) and merge with the badges
+    // already attached by probes/imported rules.
+    val displayBadges = remember(stream) {
+        val native = NativeStreamBadgeDetector.detectBadges(stream)
+        if (native.isEmpty()) {
+            stream.badges
+        } else {
+            val merged = LinkedHashMap<String, StreamBadge>(stream.badges.size + native.size)
+            stream.badges.forEach { merged[it.name] = it }
+            native.forEach { merged.putIfAbsent(it.name, it) }
+            merged.values.toList()
+        }
+    }
     var isFocused by remember { mutableStateOf(false) }
 
     val logoDecodeSize = remember(density) {
@@ -1653,7 +1670,7 @@ private fun StreamCard(
                         )
                     }
                     StreamInlineBadges(
-                        badges = stream.badges,
+                        badges = displayBadges,
                         fileSizeBytes = stream.behaviorHints?.videoSize,
                         showFileSizeBadge = showFileSizeBadges
                     )

@@ -2,11 +2,13 @@ package com.nuvio.tv.core.debrid
 
 import android.util.Log
 import com.nuvio.tv.core.player.StreamAutoPlaySelector
+import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.data.local.DebridSettingsDataStore
 import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.local.StreamAutoPlayMode
 import com.nuvio.tv.domain.model.AddonStreams
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.domain.model.StreamDebridCacheState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -135,7 +137,12 @@ class DirectDebridStreamPreparer @Inject constructor(
                     prepared.copy(
                         addonName = stream.addonName,
                         addonLogo = stream.addonLogo,
-                        badges = stream.badges
+                        // The addon's raw debrid placeholder usually has no
+                        // release info, so the initial badge pass cannot see
+                        // REMUX/DV/HDR/Atmos. Re-run the detector on the
+                        // prepared stream, which does have the filename and
+                        // description, and keep any probe/imported badges.
+                        badges = mergePreparedBadges(stream.badges, prepared)
                     )
                 } else {
                     stream
@@ -143,6 +150,15 @@ class DirectDebridStreamPreparer @Inject constructor(
             }
             if (changed) group.copy(streams = updatedStreams) else group
         }
+    }
+
+    private fun mergePreparedBadges(existing: List<StreamBadge>, prepared: Stream): List<StreamBadge> {
+        val detected = NativeStreamBadgeDetector.detectBadges(prepared.copy(badges = existing))
+        if (detected.isEmpty()) return existing
+        val merged = LinkedHashMap<String, StreamBadge>(existing.size + detected.size)
+        existing.forEach { merged[it.name] = it }
+        detected.forEach { merged.putIfAbsent(it.name, it) }
+        return merged.values.toList()
     }
 
     private suspend fun consumeBackgroundBudget(): Boolean {

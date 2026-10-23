@@ -269,6 +269,21 @@ class NativeStreamBadgeDetectorTest {
     }
 
     @Test
+    fun `detects technical badges from addon display name and description`() {
+        val stream = createStream(filename = "Project.Hail.Mary.2026.2160p.UHD.BluRay.Remux.DV.P7.HDR.MULTi.TrueHD.Atmos.H265-BTM.mkv")
+            .copy(
+                name = "[TB ⚡] Latinobrid",
+                description = "🟫 REMUX · ✨ DV HDR · 📁 80.4 GB · 🌐 Latino · 📁\n" +
+                    "Project.Hail.Mary.2026.2160p.UHD.BluRay.Remux.DV.P7.HDR.MULTi.TrueHD.Atmos.H265-BTM"
+            )
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue(names.any { it.contains("REMUX") })
+        assertTrue("4K" in names)
+        assertTrue("DV" in names)
+        assertTrue("HDR" in names)
+    }
+
+    @Test
     fun `does not report 4K or HDR for plain 1080p SDR release`() {
         val stream = createStream(
             filename = "Movie.2024.1080p.WEB-DL.AAC.2.0.x264-GROUP.mkv"
