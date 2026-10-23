@@ -27,10 +27,10 @@ Una versión no oficial de Nuvio TV que te dice, antes de reproducir, cuáles fu
 <table>
   <tr>
     <td width="50%">
-      <img src="assets/screenshots/streams-es.png" alt="Lista de fuentes en español con Solo Latino y audio verificado" />
+      <img src="assets/screenshots/streams-es.png" alt="Lista de fuentes en español con Solo Latino y audio verificado" width="100%" />
     </td>
     <td width="50%">
-      <img src="assets/screenshots/streams-en.png" alt="Lista de fuentes en inglés con insignias técnicas" />
+      <img src="assets/screenshots/streams-en.png" alt="Lista de fuentes en inglés con insignias técnicas" width="100%" />
     </td>
   </tr>
   <tr>

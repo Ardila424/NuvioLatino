@@ -3,7 +3,8 @@ param(
     [string]$Version,
     [string]$NotesFile,
     [switch]$SkipUpload,
-    [switch]$RealSigning
+    [switch]$RealSigning,
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +55,11 @@ try {
     }
 
     $tag = "v$newName"
+    if ($DryRun) {
+        Write-Host "Dry run: would publish $tag (versionCode $newCode) with debug signing." -ForegroundColor Yellow
+        return
+    }
+
     $remoteTag = @(git ls-remote --tags origin "refs/tags/$tag")
     if ($remoteTag.Count -gt 0) {
         Fail "El tag $tag ya existe en origin. Usa otra versión."
