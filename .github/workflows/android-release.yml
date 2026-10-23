@@ -12,9 +12,10 @@ on:
           - build-only
           - draft-release
           - publish-release
-  push:
-    tags:
-      - 'v*'
+      tag:
+        description: 'Release tag, e.g. v1.0.0-latino.2 (required for draft/publish)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -86,11 +87,15 @@ jobs:
           if-no-files-found: error
 
       - name: Create GitHub release
-        if: inputs.mode != 'build-only' || startsWith(github.ref, 'refs/tags/v')
+        if: inputs.mode != 'build-only'
         env:
           RELEASE_MODE: ${{ inputs.mode }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
+          if [ -z "${RELEASE_TAG}" ]; then
+            echo "The 'tag' input is required for draft-release or publish-release." >&2
+            exit 1
+          fi
           {
             echo "## What's new"
             echo
