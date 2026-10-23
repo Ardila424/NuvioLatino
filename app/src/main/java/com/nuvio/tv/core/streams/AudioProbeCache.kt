@@ -24,8 +24,11 @@ internal object AudioProbeCachePolicy {
     /** Bump whenever a parser changes semantics; invalidates every entry. */
     const val PARSER_VERSION = 1
 
-    /** A header-verified verdict is stable for a month. */
-    const val VERIFIED_TTL_MS = 30L * 24L * 60L * 60L * 1000L
+    /**
+     * A header-verified verdict is stable for a week. Longer windows mostly
+     * cache titles the user will never reopen, so they only inflate the file.
+     */
+    const val VERIFIED_TTL_MS = 7L * 24L * 60L * 60L * 1000L
 
     /** Inconclusive/failed results are retried sooner in case the source recovers. */
     const val INCONCLUSIVE_TTL_MS = 6L * 60L * 60L * 1000L

@@ -448,11 +448,13 @@ class StreamScreenViewModel @Inject constructor(
                 )
             }
             val updatedAllStreams = updatedAddonStreams.flatMap { it.streams }
-            val fullFiltered = computeFilteredStreams(
+            // Deliberately filter-only (no ranking): this runs on every probe
+            // result and sorting 600+ streams on the main thread made filter and
+            // sort changes feel unresponsive on low-end boxes.
+            val fullFiltered = filterStreamsByQuickFilter(
                 updatedAllStreams,
                 state.selectedAddonFilter,
-                state.selectedQuickFilter,
-                state.selectedSortMode
+                state.selectedQuickFilter
             )
             // Badges arrive one by one while the user is browsing: keep the
             // visible order stable and append newly matching rows at the end so
@@ -1552,11 +1554,10 @@ class StreamScreenViewModel @Inject constructor(
         return isStreamLatino(stream) || NativeStreamBadgeDetector.isCastellano(stream)
     }
 
-    private fun computeFilteredStreams(
+    private fun filterStreamsByQuickFilter(
         allStreams: List<Stream>,
         addonFilter: String?,
-        quickFilter: StreamQuickFilter,
-        sortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO
+        quickFilter: StreamQuickFilter
     ): List<Stream> {
         val byAddon = if (addonFilter == null) {
             allStreams
@@ -1564,7 +1565,7 @@ class StreamScreenViewModel @Inject constructor(
             allStreams.filter { it.addonName == addonFilter }
         }
 
-        val filtered = when (quickFilter) {
+        return when (quickFilter) {
             StreamQuickFilter.ALL -> byAddon
             StreamQuickFilter.LATINO_VERIFIED -> byAddon.filter {
                 LatinoStreamRanker.isVerifiedLatino(it)
@@ -1573,6 +1574,15 @@ class StreamScreenViewModel @Inject constructor(
             StreamQuickFilter.SPANISH -> byAddon.filter { isStreamSpanishOrLatino(it) }
             StreamQuickFilter.UHD_4K -> byAddon.filter { NativeStreamBadgeDetector.is4K(it) }
         }
+    }
+
+    private fun computeFilteredStreams(
+        allStreams: List<Stream>,
+        addonFilter: String?,
+        quickFilter: StreamQuickFilter,
+        sortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO
+    ): List<Stream> {
+        val filtered = filterStreamsByQuickFilter(allStreams, addonFilter, quickFilter)
 
         if (filtered.size <= 1) return filtered
 

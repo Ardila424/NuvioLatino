@@ -188,7 +188,7 @@ fun QuickFilterChips(
             ) {
                 Text(
                     text = displayText,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = textColor
                 )
             }

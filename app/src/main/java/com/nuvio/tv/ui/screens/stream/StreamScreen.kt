@@ -1280,14 +1280,17 @@ private fun StreamsList(
         onRestoreFocusedStreamHandled()
     }
 
-    // LazyColumn anchors the viewport to the key that was on top. After a sort
-    // change that key usually moves down, so the visible rows look unchanged
-    // until the user navigates. Jump to the top so the new best stream is
-    // immediately visible.
-    var lastSortMode by remember { mutableStateOf(selectedSortMode) }
-    LaunchedEffect(selectedSortMode) {
-        if (lastSortMode != selectedSortMode) {
-            lastSortMode = selectedSortMode
+    // LazyColumn anchors the viewport to the key that was on top. After a
+    // filter/sort change that key usually moves down (or disappears), so the
+    // visible rows look unchanged until the user navigates. Jump to the top so
+    // the change is immediately visible.
+    var lastListQuery by remember {
+        mutableStateOf(Triple(selectedAddonFilter, selectedQuickFilter, selectedSortMode))
+    }
+    LaunchedEffect(selectedAddonFilter, selectedQuickFilter, selectedSortMode) {
+        val query = Triple(selectedAddonFilter, selectedQuickFilter, selectedSortMode)
+        if (lastListQuery != query) {
+            lastListQuery = query
             runCatching { streamListState.scrollToItem(0) }
         }
     }
@@ -1501,9 +1504,9 @@ private fun StreamCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(NuvioTheme.spacing.lg),
+                .padding(NuvioTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg)
+            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
         ) {
             Column(
                 modifier = Modifier.weight(1f),
@@ -1565,7 +1568,11 @@ private fun StreamCard(
                             style = MaterialTheme.typography.bodySmall.copy(
                                 textDirection = description.contentTextDirection()
                             ),
-                            color = NuvioTheme.extendedColors.textSecondary
+                            color = NuvioTheme.extendedColors.textSecondary,
+                            // Compact rows when browsing; expand the focused card
+                            // so the full addon payload is readable on demand.
+                            maxLines = if (isFocused) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

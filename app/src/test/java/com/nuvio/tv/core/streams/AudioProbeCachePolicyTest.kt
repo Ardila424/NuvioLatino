@@ -69,7 +69,7 @@ class AudioProbeCachePolicyTest {
     }
 
     @Test
-    fun `verified entries live for 30 days`() {
+    fun `verified entries live for 7 days`() {
         val now = 10_000_000_000L
         assertTrue(
             AudioProbeCachePolicy.isFresh(

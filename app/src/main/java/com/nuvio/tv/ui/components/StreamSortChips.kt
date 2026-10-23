@@ -70,7 +70,7 @@ fun StreamSortChips(
     ) {
         Text(
             text = stringResource(R.string.stream_sort_label),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = NuvioTheme.colors.TextSecondary
         )
         Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
@@ -130,7 +130,7 @@ fun StreamSortChips(
                 ) {
                     Text(
                         text = stringResource(mode.labelRes()),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = textColor
                     )
                 }

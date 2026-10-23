@@ -68,9 +68,10 @@ internal object LatinoStreamRanker {
     }
 
     fun attributes(stream: Stream, latinTitles: List<String> = emptyList()): Attributes {
-        val quality = qualityScore(stream)
-        val resolution = resolutionScore(stream)
-        val hdr = hdrScore(stream)
+        val text = contentText(stream)
+        val quality = qualityScore(stream, text)
+        val resolution = resolutionScore(stream, text)
+        val hdr = hdrScore(text)
         val size = StreamTextSizeParser.effectiveSizeBytes(stream) ?: 0L
         val sizeTieBreak = (size / 1_000_000_000L).coerceAtMost(50L).toInt()
 
@@ -87,9 +88,10 @@ internal object LatinoStreamRanker {
         )
     }
 
-    fun qualityScore(stream: Stream): Int {
+    fun qualityScore(stream: Stream): Int = qualityScore(stream, contentText(stream))
+
+    private fun qualityScore(stream: Stream, text: String): Int {
         if (NativeStreamBadgeDetector.isRemux(stream)) return 60
-        val text = contentText(stream)
         return when {
             text.contains("bluray") || text.contains("blu-ray") || text.contains("bdrip") -> 50
             text.contains("web-dl") || text.contains("webdl") || text.contains("web dl") -> 40
@@ -99,9 +101,10 @@ internal object LatinoStreamRanker {
         }
     }
 
-    fun resolutionScore(stream: Stream): Int {
+    fun resolutionScore(stream: Stream): Int = resolutionScore(stream, contentText(stream))
+
+    private fun resolutionScore(stream: Stream, text: String): Int {
         if (NativeStreamBadgeDetector.is4K(stream)) return 40
-        val text = contentText(stream)
         return when {
             text.contains("1080") -> 30
             text.contains("720") -> 10
@@ -109,14 +112,13 @@ internal object LatinoStreamRanker {
         }
     }
 
-    fun hdrScore(stream: Stream): Int {
-        val text = contentText(stream)
-        return when {
-            text.contains("dolby vision") || text.contains("dovi") || text.contains(" dv ") -> 10
-            text.contains("hdr10+") -> 9
-            text.contains("hdr") -> 8
-            else -> 0
-        }
+    fun hdrScore(stream: Stream): Int = hdrScore(contentText(stream))
+
+    private fun hdrScore(text: String): Int = when {
+        text.contains("dolby vision") || text.contains("dovi") || text.contains(" dv ") -> 10
+        text.contains("hdr10+") -> 9
+        text.contains("hdr") -> 8
+        else -> 0
     }
 
     private fun contentText(stream: Stream): String = buildString {
