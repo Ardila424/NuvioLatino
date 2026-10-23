@@ -15,9 +15,20 @@ import java.io.ByteArrayOutputStream
 
 class StreamAudioProbeServiceTest {
 
-    private fun newService() = StreamAudioProbeService(
+    private class FakeAudioProbeCache : AudioProbeCache {
+        val entries = mutableMapOf<String, StreamAudioProbeResult>()
+        override suspend fun get(cacheKey: String): StreamAudioProbeResult? = entries[cacheKey]
+        override suspend fun put(cacheKey: String, result: StreamAudioProbeResult) {
+            entries[cacheKey] = result
+        }
+    }
+
+    private fun newService(
+        cache: AudioProbeCache = FakeAudioProbeCache()
+    ) = StreamAudioProbeService(
         directDebridResolver = mockk(relaxed = true),
-        okHttpClient = OkHttpClient()
+        okHttpClient = OkHttpClient(),
+        audioProbeCache = cache
     )
 
     private fun httpStream(url: String) = Stream(
@@ -201,6 +212,48 @@ class StreamAudioProbeServiceTest {
 
             assertTrue(first is StreamAudioProbeResult.Success)
             assertTrue(second is StreamAudioProbeResult.Success)
+            assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `second service instance reuses the persistent cache`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(206)
+                    .setBody(Buffer().write(ebmlHeader + buildMkvTracksElement()))
+            )
+            // Fallback so a wrong second request fails fast instead of hanging.
+            server.enqueue(MockResponse().setResponseCode(200).setBody("nope"))
+
+            val cache = FakeAudioProbeCache()
+            val stream = httpStream(server.url("/persisted.mkv").toString())
+
+            val first = newService(cache).probeStreamAudio(stream)
+            val second = newService(cache).probeStreamAudio(stream)
+
+            assertTrue(first is StreamAudioProbeResult.Success)
+            assertTrue(second is StreamAudioProbeResult.Success)
+            assertEquals(1, server.requestCount)
+            assertEquals(1, cache.entries.size)
+        }
+    }
+
+    @Test
+    fun `inconclusive results are persisted so they are not refetched`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(200).setBody("not a container"))
+
+            val cache = FakeAudioProbeCache()
+            val service = newService(cache)
+            val stream = httpStream(server.url("/plain.bin").toString())
+
+            val first = service.probeStreamAudio(stream)
+            val second = service.probeStreamAudio(stream)
+
+            assertEquals(StreamAudioProbeResult.Inconclusive, first)
+            assertEquals(StreamAudioProbeResult.Inconclusive, second)
             assertEquals(1, server.requestCount)
         }
     }

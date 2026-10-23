@@ -64,7 +64,8 @@ data class ProbeAudioTrack(
 @Singleton
 class StreamAudioProbeService @Inject constructor(
     private val directDebridResolver: DirectDebridResolver,
-    @Named("addonPermissive") private val okHttpClient: OkHttpClient
+    @Named("addonPermissive") private val okHttpClient: OkHttpClient,
+    private val audioProbeCache: AudioProbeCache
 ) {
     private val probeCache = ConcurrentHashMap<String, StreamAudioProbeResult>()
 
@@ -76,8 +77,13 @@ class StreamAudioProbeService @Inject constructor(
         season: Int? = null,
         episode: Int? = null
     ): StreamAudioProbeResult = withContext(Dispatchers.IO) {
-        val cacheKey = stream.badgeMergeKey()
+        val cacheKey = AudioProbeCachePolicy.cacheKey(stream)
         probeCache[cacheKey]?.let { return@withContext it }
+
+        readPersistentCache(cacheKey)?.let { cached ->
+            probeCache[cacheKey] = cached
+            return@withContext cached
+        }
 
         remainingCooldownMs()?.let { remaining ->
             return@withContext StreamAudioProbeResult.RateLimited(
@@ -100,8 +106,29 @@ class StreamAudioProbeService @Inject constructor(
         // is host-wide and is handled by the cooldown instead.
         if (result !is StreamAudioProbeResult.RateLimited) {
             probeCache[cacheKey] = result
+            writePersistentCache(cacheKey, result)
         }
         result
+    }
+
+    private suspend fun readPersistentCache(cacheKey: String): StreamAudioProbeResult? =
+        try {
+            audioProbeCache.get(cacheKey)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.w(TAG, "Probe cache read failed: ${error.message}")
+            null
+        }
+
+    private suspend fun writePersistentCache(cacheKey: String, result: StreamAudioProbeResult) {
+        try {
+            audioProbeCache.put(cacheKey, result)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.w(TAG, "Probe cache write failed: ${error.message}")
+        }
     }
 
     private fun remainingCooldownMs(): Long? {
