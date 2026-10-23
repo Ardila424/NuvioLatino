@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,7 +57,7 @@ fun QuickFilterChips(
     onDownKey: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var filterCounts by remember(allStreams) {
+    var filterCounts by remember {
         mutableStateOf(List(4) { 0 })
     }
 
@@ -67,6 +66,9 @@ fun QuickFilterChips(
             filterCounts = List(4) { 0 }
             return@LaunchedEffect
         }
+        // Coalesce the burst of list updates that arrives while probes land:
+        // recomputing on every badge change caused the chips to flicker.
+        delay(250)
         val counts = withContext(Dispatchers.Default) {
             listOf(
                 allStreams.count { stream ->
@@ -113,17 +115,6 @@ fun QuickFilterChips(
     val internalRequesters = remember { List(5) { FocusRequester() } }
     val focusRequesters = externalFocusRequesters ?: internalRequesters
 
-    var focusedIndex by remember { mutableIntStateOf(0) }
-    var focusedFilter by remember { mutableStateOf<StreamQuickFilter?>(null) }
-
-    LaunchedEffect(focusedFilter) {
-        val target = focusedFilter ?: return@LaunchedEffect
-        delay(200L)
-        if (selectedFilter != target) {
-            onFilterSelected(target)
-        }
-    }
-
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md),
         contentPadding = PaddingValues(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs),
@@ -161,21 +152,10 @@ fun QuickFilterChips(
 
             FilterChip(
                 selected = isSelected,
-                onClick = { 
-                    focusedFilter = null
-                    onFilterSelected(option.filter)
-                },
+                onClick = { onFilterSelected(option.filter) },
                 modifier = Modifier
                     .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
-                    .onFocusChanged {
-                        isFocused = it.isFocused
-                        if (it.isFocused) {
-                            focusedIndex = index
-                            focusedFilter = option.filter
-                        } else if (focusedFilter == option.filter) {
-                            focusedFilter = null
-                        }
-                    },
+                    .onFocusChanged { isFocused = it.isFocused },
                 colors = FilterChipDefaults.colors(
                     containerColor = NuvioTheme.colors.BackgroundCard,
                     focusedContainerColor = NuvioTheme.colors.Secondary,
