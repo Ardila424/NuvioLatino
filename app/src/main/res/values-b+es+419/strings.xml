@@ -1766,7 +1766,7 @@
     <string name="stream_sort_size">Tamaño</string>
     <string name="stream_toolbar_source">Fuente</string>
     <string name="stream_toolbar_sort">Orden</string>
-    <string name="stream_filter_latino_hint">Comprobado %1$d REMUX de %2$d fuentes · %3$d con Latino verificado.</string>
+    <string name="stream_filter_latino_hint">Comprobado %1$d REMUX en caché de %2$d fuentes · %3$d con Latino verificado.</string>
     <string name="stream_filter_verify_more">Verificar más</string>
 
     <string name="stream_retry">Reintentar</string>

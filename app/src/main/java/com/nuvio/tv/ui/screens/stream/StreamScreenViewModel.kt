@@ -334,6 +334,7 @@ class StreamScreenViewModel @Inject constructor(
     private fun onStreamFocused(stream: Stream) {
         streamFocusProbeJob?.cancel()
         if (!NativeStreamBadgeDetector.isRemux(stream)) return
+        if (!stream.isSafeToProbe()) return
         val key = stream.badgeMergeKey()
         if (probedStreamKeys.contains(key)) return
 
@@ -367,10 +368,22 @@ class StreamScreenViewModel @Inject constructor(
         if (allStreams.isEmpty()) return
         batchProbeStarted = true
         val candidates = allStreams
-            .filter { NativeStreamBadgeDetector.isRemux(it) }
+            .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
             .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
             .take(BATCH_PROBE_COUNT)
         batchProbeJob = viewModelScope.launch { runBatchProbe(candidates) }
+    }
+
+    /**
+     * Debrid providers may add an uncached torrent to the account while
+     * resolving it. TorBox is safe (addOnlyIfCached), but Real-Debrid and
+     * Premiumize can start caching a multi-GB REMUX. Only probe cached debrid
+     * streams or streams that need no debrid resolution at all.
+     */
+    private fun Stream.isSafeToProbe(): Boolean {
+        val resolve = clientResolve ?: return true
+        if (!resolve.type.equals("debrid", ignoreCase = true)) return true
+        return resolve.isCached == true || debridCacheStatus?.state == StreamDebridCacheState.CACHED
     }
 
     /**
@@ -383,7 +396,7 @@ class StreamScreenViewModel @Inject constructor(
         val allStreams = _uiState.value.allStreams
         if (allStreams.isEmpty()) return
         val candidates = allStreams
-            .filter { NativeStreamBadgeDetector.isRemux(it) }
+            .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
             .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
             .filter { !probedStreamKeys.contains(it.badgeMergeKey()) }
             .take(BATCH_PROBE_COUNT)
