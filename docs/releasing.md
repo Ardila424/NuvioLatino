@@ -26,6 +26,9 @@ Opciones:
 
 # Solo compilar y commitear, sin subir
 .\scripts\publish-release.ps1 -SkipUpload
+
+# Ver qué versión se publicaría, sin tocar nada
+.\scripts\publish-release.ps1 -DryRun
 ```
 
 El token de GitHub se toma de `GH_TOKEN`, `GITHUB_TOKEN` o de las credenciales que ya usa Git para `github.com`. No se guarda en el repositorio.
