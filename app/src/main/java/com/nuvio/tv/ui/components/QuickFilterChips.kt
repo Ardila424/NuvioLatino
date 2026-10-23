@@ -157,7 +157,7 @@ fun QuickFilterChips(
                     .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
                     .onFocusChanged { isFocused = it.isFocused },
                 colors = FilterChipDefaults.colors(
-                    containerColor = NuvioTheme.colors.BackgroundCard,
+                    containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f),
                     focusedContainerColor = NuvioTheme.colors.Secondary,
                     selectedContainerColor = NuvioTheme.colors.Secondary,
                     focusedSelectedContainerColor = NuvioTheme.colors.Secondary,
@@ -168,7 +168,10 @@ fun QuickFilterChips(
                 ),
                 border = FilterChipDefaults.border(
                     border = Border(
-                        border = BorderStroke(NuvioTheme.spacing.hairline, NuvioTheme.colors.Border),
+                        border = BorderStroke(
+                            NuvioTheme.spacing.hairline,
+                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f)
+                        ),
                         shape = RoundedCornerShape(16.dp)
                     ),
                     focusedBorder = Border(

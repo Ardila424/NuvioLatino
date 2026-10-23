@@ -98,7 +98,7 @@ fun SourceStatusFilterChip(
                 }
             },
         colors = FilterChipDefaults.colors(
-            containerColor = if (shouldUseNormalColors) NuvioTheme.colors.BackgroundCard else NuvioTheme.colors.Error.copy(alpha = 0.05f),
+            containerColor = if (shouldUseNormalColors) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else NuvioTheme.colors.Error.copy(alpha = 0.05f),
             focusedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.08f),
             selectedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.07f),
             focusedSelectedContainerColor = if (shouldUseNormalColors) NuvioTheme.colors.Secondary else NuvioTheme.colors.Error.copy(alpha = 0.09f),
@@ -109,7 +109,11 @@ fun SourceStatusFilterChip(
         ),
         border = FilterChipDefaults.border(
             border = Border(
-                border = BorderStroke(NuvioTheme.spacing.hairline, if (isError) NuvioTheme.colors.Error.copy(alpha = 0.7f) else NuvioTheme.colors.Border),
+                border = BorderStroke(
+                    NuvioTheme.spacing.hairline,
+                    if (isError) NuvioTheme.colors.Error.copy(alpha = 0.7f)
+                    else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f)
+                ),
                 shape = RoundedCornerShape(20.dp)
             ),
             focusedBorder = Border(
@@ -138,7 +142,7 @@ fun SourceStatusFilterChip(
         Text(
             text = name,
             modifier = Modifier.shimmer(isLoading),
-            style = MaterialTheme.typography.labelLarge.copy(
+            style = MaterialTheme.typography.labelMedium.copy(
                 textDirection = name.contentTextDirection()
             ),
             color = textColor
