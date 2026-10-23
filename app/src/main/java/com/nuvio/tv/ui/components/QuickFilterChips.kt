@@ -54,6 +54,7 @@ fun QuickFilterChips(
     allStreams: List<Stream>,
     selectedFilter: StreamQuickFilter,
     onFilterSelected: (StreamQuickFilter) -> Unit,
+    showLatinoFilters: Boolean = true,
     externalFocusRequesters: List<FocusRequester>? = null,
     onUpKey: (() -> Unit)? = null,
     onDownKey: (() -> Unit)? = null,
@@ -95,34 +96,44 @@ fun QuickFilterChips(
         filterCounts = counts
     }
 
-    val options = remember(allStreams.size, filterCounts) {
-        listOf(
-            QuickFilterOption(StreamQuickFilter.ALL, "", R.string.stream_filter_all, allStreams.size),
-            QuickFilterOption(
-                StreamQuickFilter.LATINO_VERIFIED,
-                "🇲🇽 ",
-                R.string.stream_filter_latino_verified,
-                filterCounts.getOrElse(0) { 0 }
-            ),
-            QuickFilterOption(
-                StreamQuickFilter.SPANISH,
-                "🌎 ",
-                R.string.stream_filter_spanish,
-                filterCounts.getOrElse(1) { 0 }
-            ),
-            QuickFilterOption(
-                StreamQuickFilter.REMUX,
-                "💎 ",
-                R.string.stream_filter_remux,
-                filterCounts.getOrElse(2) { 0 }
-            ),
-            QuickFilterOption(
-                StreamQuickFilter.UHD_4K,
-                "📺 ",
-                R.string.stream_filter_4k,
-                filterCounts.getOrElse(3) { 0 }
+    val options = remember(allStreams.size, filterCounts, showLatinoFilters) {
+        buildList {
+            add(QuickFilterOption(StreamQuickFilter.ALL, "", R.string.stream_filter_all, allStreams.size))
+            if (showLatinoFilters) {
+                add(
+                    QuickFilterOption(
+                        StreamQuickFilter.LATINO_VERIFIED,
+                        "🇲🇽 ",
+                        R.string.stream_filter_latino_verified,
+                        filterCounts.getOrElse(0) { 0 }
+                    )
+                )
+                add(
+                    QuickFilterOption(
+                        StreamQuickFilter.SPANISH,
+                        "🌎 ",
+                        R.string.stream_filter_spanish,
+                        filterCounts.getOrElse(1) { 0 }
+                    )
+                )
+            }
+            add(
+                QuickFilterOption(
+                    StreamQuickFilter.REMUX,
+                    "💎 ",
+                    R.string.stream_filter_remux,
+                    filterCounts.getOrElse(2) { 0 }
+                )
             )
-        )
+            add(
+                QuickFilterOption(
+                    StreamQuickFilter.UHD_4K,
+                    "📺 ",
+                    R.string.stream_filter_4k,
+                    filterCounts.getOrElse(3) { 0 }
+                )
+            )
+        }
     }
 
     val internalRequesters = remember { List(5) { FocusRequester() } }
@@ -131,10 +142,11 @@ fun QuickFilterChips(
 
     // Keep the selected chip fully visible: the row used to restore a stale
     // scroll offset that left the first/last chip clipped against the edge.
-    LaunchedEffect(selectedFilter) {
-        listState.animateScrollToItem(
-            selectedFilter.ordinal.coerceIn(0, options.lastIndex)
-        )
+    LaunchedEffect(selectedFilter, options.size) {
+        val index = options.indexOfFirst { it.filter == selectedFilter }
+            .takeIf { it >= 0 }
+            ?: 0
+        listState.animateScrollToItem(index.coerceIn(0, options.lastIndex))
     }
 
     LazyRow(
@@ -161,7 +173,7 @@ fun QuickFilterChips(
                 }
             }
     ) {
-        itemsIndexed(options) { index, option ->
+        itemsIndexed(options) { _, option ->
             val isSelected = selectedFilter == option.filter
             val labelText = stringResource(option.labelRes)
             val probedCount = filterCounts.getOrElse(4) { 0 }
@@ -184,7 +196,7 @@ fun QuickFilterChips(
                 selected = isSelected,
                 onClick = { onFilterSelected(option.filter) },
                 modifier = Modifier
-                    .focusRequester(focusRequesters.getOrElse(index) { FocusRequester() })
+                    .focusRequester(focusRequesters.getOrElse(option.filter.ordinal) { FocusRequester() })
                     .height(32.dp)
                     .onFocusChanged { isFocused = it.isFocused },
                 colors = FilterChipDefaults.colors(

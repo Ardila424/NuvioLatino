@@ -161,6 +161,15 @@ class HomeViewModel @Inject constructor(
         val tag = LocaleCache.localeTag
         if (_currentLocaleTag.value != tag) {
             _currentLocaleTag.value = tag
+            // Metadata is cached per language. Without this, switching the app
+            // to English keeps showing the Spanish titles/descriptions that
+            // were fetched for the previous locale.
+            viewModelScope.launch {
+                cwEnrichmentCache.clearAll()
+                clearAllCwInMemoryCaches()
+                loadContinueWatching()
+                refreshVisibleCatalogsPipeline(forceReplace = true)
+            }
         }
     }
 

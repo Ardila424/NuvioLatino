@@ -103,11 +103,15 @@ class TmdbSettingsDataStore @Inject constructor(
     suspend fun onAppLanguageChanged(newAppLanguageTag: String, previousTag: String? = null) {
         store().edit { prefs ->
             val current = prefs[languageKey]
+            val previousBase = previousTag?.substringBefore('-')?.lowercase()
+            val currentBase = current?.substringBefore('-')?.lowercase()
+            val followsPreviousApp = previousBase != null && currentBase == previousBase
             val wasFollowingApp = current == null ||
                 current.isBlank() ||
                 current.equals(TMDB_LANGUAGE_AUTO, ignoreCase = true) ||
                 current.equals("en", ignoreCase = true) ||
-                (previousTag != null && current.equals(previousTag, ignoreCase = true))
+                (previousTag != null && current.equals(previousTag, ignoreCase = true)) ||
+                followsPreviousApp
             if (wasFollowingApp) {
                 prefs[languageKey] = TMDB_LANGUAGE_AUTO
             }

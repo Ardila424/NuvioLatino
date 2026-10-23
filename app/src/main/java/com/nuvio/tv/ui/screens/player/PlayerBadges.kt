@@ -8,10 +8,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.tv.core.streams.StreamBadgeMatcher
+import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.ui.components.StreamBadgeMark
 import com.nuvio.tv.ui.util.languageCodeToName
@@ -35,8 +37,9 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
         }
     }
 
-    val techBadges = remember(mediaInfo, selectedAudio) {
-        buildPlayerTechBadges(mediaInfo, selectedAudio)
+    val latinoFeaturesEnabled = AppLanguage.latinoFeaturesEnabled(LocalConfiguration.current)
+    val techBadges = remember(mediaInfo, selectedAudio, latinoFeaturesEnabled) {
+        buildPlayerTechBadges(mediaInfo, selectedAudio, showLanguageBadge = latinoFeaturesEnabled)
     }
     val importedBadges = if (filters.isEmpty()) {
         emptyList()
@@ -46,8 +49,9 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
             mediaInfo,
             listOfNotNull(language, language?.let(::languageCodeToName))
         )
-        remember(text, filters) {
+        remember(text, filters, latinoFeaturesEnabled) {
             StreamBadgeMatcher.matchedBadges(listOfNotNull(text.takeIf { it.isNotBlank() }), filters)
+                .filter { latinoFeaturesEnabled || !it.isForkLanguageBadge() }
         }
     }
 
@@ -56,11 +60,21 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
     }
 }
 
+private fun StreamBadge.isForkLanguageBadge(): Boolean =
+    name.contains("LATINO", ignoreCase = true) ||
+        name.contains("CASTELLANO", ignoreCase = true) ||
+        name.contains("ESPAÑOL", ignoreCase = true) ||
+        name.contains("SPANISH", ignoreCase = true)
+
 /**
  * Badges built from the *actual* playing tracks, not from the release name.
  * Solid marks therefore mean "the player is really decoding this".
  */
-private fun buildPlayerTechBadges(info: PlayerMediaInfo, audio: TrackInfo?): List<StreamBadge> {
+private fun buildPlayerTechBadges(
+    info: PlayerMediaInfo,
+    audio: TrackInfo?,
+    showLanguageBadge: Boolean
+): List<StreamBadge> {
     val badges = mutableListOf<StreamBadge>()
     fun add(name: String, style: String, background: String = "", foreground: String = "#FFFFFF", border: String = "") {
         if (badges.any { it.name == name }) return
@@ -118,8 +132,10 @@ private fun buildPlayerTechBadges(info: PlayerMediaInfo, audio: TrackInfo?): Lis
         6 -> add("5.1", "tech-meta", foreground = "#D1D5DB", border = "#4B5563")
     }
 
-    playerLanguageLabel(audio)?.let { language ->
-        add(language, "tech-lang", "#0F766E", "#FFFFFF", "#14B8A6")
+    if (showLanguageBadge) {
+        playerLanguageLabel(audio)?.let { language ->
+            add(language, "tech-lang", "#0F766E", "#FFFFFF", "#14B8A6")
+        }
     }
 
     return badges

@@ -2,6 +2,7 @@ package com.nuvio.tv.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nuvio.tv.data.local.ContinueWatchingEnrichmentCache
 import com.nuvio.tv.data.local.ThemeDataStore
 import com.nuvio.tv.data.repository.MemberAccessRepository
 import com.nuvio.tv.domain.model.AppFont
@@ -54,7 +55,8 @@ class ThemeSettingsViewModel @Inject constructor(
     private val themeDataStore: ThemeDataStore,
     private val memberAccessRepository: MemberAccessRepository,
     private val appIconManager: AppIconManager,
-    private val tmdbSettingsDataStore: com.nuvio.tv.data.local.TmdbSettingsDataStore
+    private val tmdbSettingsDataStore: com.nuvio.tv.data.local.TmdbSettingsDataStore,
+    private val cwEnrichmentCache: ContinueWatchingEnrichmentCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ThemeSettingsUiState())
@@ -64,6 +66,10 @@ class ThemeSettingsViewModel @Inject constructor(
     fun onAppLanguageChanged(newTag: String, previousTag: String? = null) {
         viewModelScope.launch {
             tmdbSettingsDataStore.onAppLanguageChanged(newTag, previousTag)
+            // Titles/descriptions are cached per language; drop the old
+            // language's enrichment so Home doesn't keep showing Spanish
+            // metadata after switching to English.
+            cwEnrichmentCache.clearAll()
         }
     }
 

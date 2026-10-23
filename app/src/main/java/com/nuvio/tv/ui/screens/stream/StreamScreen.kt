@@ -79,6 +79,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.nuvio.tv.core.party.PartySource
@@ -97,6 +98,7 @@ import coil3.compose.AsyncImage
 import com.nuvio.tv.core.player.ExternalPlayerLauncher
 import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePlacement
+import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.core.streams.StreamBadgeSettings
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.domain.model.Stream
@@ -162,6 +164,10 @@ fun StreamScreen(
     )
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val latinoFeaturesEnabled = AppLanguage.latinoFeaturesEnabled(LocalConfiguration.current)
+    LaunchedEffect(latinoFeaturesEnabled) {
+        viewModel.setLatinoFeaturesEnabled(latinoFeaturesEnabled)
+    }
     var focusedStreamIndex by rememberSaveable { mutableStateOf(0) }
     var restoreFocusedStream by rememberSaveable { mutableStateOf(false) }
     var pendingRestoreOnResume by rememberSaveable { mutableStateOf(false) }
@@ -486,6 +492,7 @@ fun StreamScreen(
                     onQuickFilterSelected = { viewModel.onEvent(StreamScreenEvent.OnQuickFilterSelected(it)) },
                     onSortModeSelected = { viewModel.onEvent(StreamScreenEvent.OnSortModeSelected(it)) },
                     onVerifyMore = { viewModel.probeMoreStreams() },
+                    latinoFeaturesEnabled = latinoFeaturesEnabled,
                     onStreamFocused = { viewModel.onEvent(StreamScreenEvent.OnStreamFocused(it)) },
                     onRefresh = { viewModel.onEvent(StreamScreenEvent.OnRefresh) },
                     sharedStream = sharedStream,
@@ -785,6 +792,7 @@ private fun RightStreamSection(
     onQuickFilterSelected: (StreamQuickFilter) -> Unit = {},
     onSortModeSelected: (StreamSortMode) -> Unit = {},
     onVerifyMore: () -> Unit = {},
+    latinoFeaturesEnabled: Boolean = true,
     showFileSizeBadges: Boolean,
     showAddonLogo: Boolean,
     badgePlacement: StreamBadgePlacement,
@@ -817,6 +825,18 @@ private fun RightStreamSection(
         buildList {
             addAll(availableAddons)
             sourceChips.forEach { if (it.name !in this) add(it.name) }
+        }
+    }
+    LaunchedEffect(latinoFeaturesEnabled) {
+        if (!latinoFeaturesEnabled) {
+            if (selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED ||
+                selectedQuickFilter == StreamQuickFilter.SPANISH
+            ) {
+                onQuickFilterSelected(StreamQuickFilter.ALL)
+            }
+            if (selectedSortMode == StreamSortMode.MEJOR_CON_LATINO) {
+                onSortModeSelected(StreamSortMode.CALIDAD)
+            }
         }
     }
     val firstStreamKey = streams.firstOrNull()?.stableKey(0)
@@ -941,9 +961,18 @@ private fun RightStreamSection(
                         }
                     }
                 }
-                val sortOptions = StreamSortMode.values().map { mode ->
-                    StreamOption(mode.name, stringResource(mode.labelRes()))
+                val visibleSortMode = if (!latinoFeaturesEnabled &&
+                    selectedSortMode == StreamSortMode.MEJOR_CON_LATINO
+                ) {
+                    StreamSortMode.CALIDAD
+                } else {
+                    selectedSortMode
                 }
+                val sortOptions = StreamSortMode.values()
+                    .filter { latinoFeaturesEnabled || it != StreamSortMode.MEJOR_CON_LATINO }
+                    .map { mode ->
+                        StreamOption(mode.name, stringResource(mode.labelRes()))
+                    }
                 val latinoProbeStats = remember(activeStreamsForFilter) {
                     val verified = activeStreamsForFilter.count { stream ->
                         stream.badges.any { it.name.contains("LATINO (Verificado)") }
@@ -979,7 +1008,7 @@ private fun RightStreamSection(
                     )
                     StreamToolbarChip(
                         label = stringResource(R.string.stream_toolbar_sort),
-                        value = stringResource(selectedSortMode.labelRes()),
+                        value = stringResource(visibleSortMode.labelRes()),
                         onClick = { showSortMenu = true },
                         focusRequester = sortFocusRequester,
                         modifier = Modifier.onKeyEvent { event ->
@@ -1008,10 +1037,13 @@ private fun RightStreamSection(
                         allStreams = activeStreamsForFilter,
                         selectedFilter = selectedQuickFilter,
                         onFilterSelected = onQuickFilterSelected,
+                        showLatinoFilters = latinoFeaturesEnabled,
                         externalFocusRequesters = quickFilterFocusRequesters,
                         onUpKey = { restoreFocus(sourceFocusRequester) },
                         onDownKey = {
-                            if (selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED) {
+                            if (latinoFeaturesEnabled &&
+                                selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED
+                            ) {
                                 runCatching { verifyMoreFocusRequester.requestFocus() }
                             } else {
                                 firstStreamFocusRequestId += 1
@@ -1020,7 +1052,7 @@ private fun RightStreamSection(
                     )
                 }
 
-                if (selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED) {
+                if (latinoFeaturesEnabled && selectedQuickFilter == StreamQuickFilter.LATINO_VERIFIED) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1088,7 +1120,7 @@ private fun RightStreamSection(
                     StreamOptionDialog(
                         title = stringResource(R.string.stream_toolbar_sort),
                         options = sortOptions,
-                        selectedId = selectedSortMode.name,
+                        selectedId = visibleSortMode.name,
                         onSelect = { id ->
                             showSortMenu = false
                             StreamSortMode.values().firstOrNull { it.name == id }
@@ -1144,6 +1176,7 @@ private fun RightStreamSection(
                                 onRequestChipFocus = { restoreFocus(sourceFocusRequester) },
                                 selectedQuickFilter = selectedQuickFilter,
                                 selectedSortMode = selectedSortMode,
+                                showLatinoBadges = latinoFeaturesEnabled,
                                 onRequestQuickFilterFocus = if (activeStreamsForFilter.isNotEmpty()) {{
                                     val quickIdx = selectedQuickFilter.ordinal
                                         .coerceIn(0, quickFilterFocusRequesters.lastIndex)
@@ -1275,6 +1308,7 @@ private fun StreamsList(
     onRequestChipFocus: (Int) -> Unit = {},
     selectedQuickFilter: StreamQuickFilter = StreamQuickFilter.ALL,
     selectedSortMode: StreamSortMode = StreamSortMode.MEJOR_CON_LATINO,
+    showLatinoBadges: Boolean = true,
     onRequestQuickFilterFocus: (() -> Unit)? = null,
     onUserNavigatedFromFirstResult: () -> Unit = {},
     onFocusedStreamKeyChanged: (String?) -> Unit = {},
@@ -1463,6 +1497,7 @@ private fun StreamsList(
                         showFileSizeBadges = showFileSizeBadges,
                         showAddonLogo = showAddonLogo,
                         badgePlacement = badgePlacement,
+                        showLatinoBadges = showLatinoBadges,
                         onClick = { onSharedStreamSelected(shared.stream) },
                         focusRequester = sharedFocusRequester,
                         onFocusChanged = { focused -> sharedCardHasFocus = focused },
@@ -1486,6 +1521,7 @@ private fun StreamsList(
                     showFileSizeBadges = showFileSizeBadges,
                     showAddonLogo = showAddonLogo,
                     badgePlacement = badgePlacement,
+                    showLatinoBadges = showLatinoBadges,
                     reserveBadgeSpace = hasBadgeRules && stream.badges.isEmpty(),
                     label = partySourceLabel.takeIf { isPartySource },
                     onClick = { onStreamSelected(stream) },
@@ -1525,6 +1561,7 @@ private fun StreamCard(
     showFileSizeBadges: Boolean,
     showAddonLogo: Boolean,
     badgePlacement: StreamBadgePlacement,
+    showLatinoBadges: Boolean = true,
     reserveBadgeSpace: Boolean = false,
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null,
@@ -1548,9 +1585,9 @@ private fun StreamCard(
     // the presentation pass may have run before the filename/description were
     // available. Re-detect here (cached per stream) and merge with the badges
     // already attached by probes/imported rules.
-    val displayBadges = remember(stream) {
+    val displayBadges = remember(stream, showLatinoBadges) {
         val native = NativeStreamBadgeDetector.detectBadges(stream)
-        if (native.isEmpty()) {
+        val allBadges = if (native.isEmpty()) {
             stream.badges
         } else {
             val merged = LinkedHashMap<String, StreamBadge>(stream.badges.size + native.size)
@@ -1558,6 +1595,7 @@ private fun StreamCard(
             native.forEach { merged.putIfAbsent(it.name, it) }
             merged.values.toList()
         }
+        if (showLatinoBadges) allBadges else allBadges.filterNot { it.isLatinoProvenanceBadge() }
     }
     var isFocused by remember { mutableStateOf(false) }
 
@@ -1718,6 +1756,12 @@ private fun StreamCard(
     }
 }
 }
+
+private fun StreamBadge.isLatinoProvenanceBadge(): Boolean =
+    name.contains("LATINO", ignoreCase = true) ||
+        name.contains("CASTELLANO", ignoreCase = true) ||
+        name.contains("ESPAÑOL", ignoreCase = true) ||
+        name.contains("SPANISH", ignoreCase = true)
 
 @Composable
 internal fun PlayerChoiceDialog(

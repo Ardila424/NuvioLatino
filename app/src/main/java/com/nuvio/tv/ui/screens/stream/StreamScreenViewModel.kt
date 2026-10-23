@@ -24,6 +24,7 @@ import com.nuvio.tv.core.tracking.TrackingScrobbleAction
 import com.nuvio.tv.core.tracking.TrackingScrobbleCoordinator
 import com.nuvio.tv.core.tracking.TrackingScrobbleEvent
 import com.nuvio.tv.core.tracking.buildTrackingMediaReference
+import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.core.util.parseRuntimeMinutes
 import com.nuvio.tv.core.streams.StreamAudioProbeResult
 import com.nuvio.tv.core.streams.StreamAudioProbeService
@@ -143,6 +144,9 @@ class StreamScreenViewModel @Inject constructor(
     private var batchProbeJob: Job? = null
     private val batchProbeSemaphore = Semaphore(BATCH_PROBE_CONCURRENCY)
     private var latinAlternativeTitles: List<String> = emptyList()
+
+    @Volatile
+    private var latinoFeaturesEnabled: Boolean = AppLanguage.isSpanish()
 
     private val embeddedStreamGroupName: String by lazy {
         context.getString(R.string.stream_embedded_group)
@@ -333,6 +337,7 @@ class StreamScreenViewModel @Inject constructor(
 
     private fun onStreamFocused(stream: Stream) {
         streamFocusProbeJob?.cancel()
+        if (!latinoFeaturesEnabled) return
         if (!NativeStreamBadgeDetector.isRemux(stream)) return
         if (!stream.isSafeToProbe()) return
         val key = stream.badgeMergeKey()
@@ -363,6 +368,7 @@ class StreamScreenViewModel @Inject constructor(
      * debrid accounts from a burst of probe requests.
      */
     private fun maybeStartBatchProbe() {
+        if (!latinoFeaturesEnabled) return
         if (batchProbeStarted) return
         val allStreams = _uiState.value.allStreams
         if (allStreams.isEmpty()) return
@@ -391,7 +397,23 @@ class StreamScreenViewModel @Inject constructor(
      * action. Only REMUX is probed: 1080p sources are numerous and probing them
      * would burn through debrid quota for very little extra Latino coverage.
      */
+    fun setLatinoFeaturesEnabled(enabled: Boolean) {
+        if (latinoFeaturesEnabled == enabled) return
+        latinoFeaturesEnabled = enabled
+        if (!enabled) {
+            batchProbeJob?.cancel()
+            batchProbeJob = null
+            streamFocusProbeJob?.cancel()
+            streamFocusProbeJob = null
+            batchProbeStarted = false
+        } else {
+            batchProbeStarted = false
+            maybeStartBatchProbe()
+        }
+    }
+
     fun probeMoreStreams() {
+        if (!latinoFeaturesEnabled) return
         if (batchProbeJob?.isActive == true) return
         val allStreams = _uiState.value.allStreams
         if (allStreams.isEmpty()) return
