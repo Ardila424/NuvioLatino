@@ -258,6 +258,92 @@ class StreamAudioProbeServiceTest {
         }
     }
 
+    @Test
+    fun `probe verifies HLS master playlist languages`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        #EXTM3U
+                        #EXT-X-MEDIA:TYPE=AUDIO,NAME="Latino",LANGUAGE="es-419",DEFAULT=YES
+                        """.trimIndent()
+                    )
+            )
+
+            val result = newService().probeStreamAudio(
+                httpStream(server.url("/master.m3u8").toString())
+            )
+
+            assertTrue(result is StreamAudioProbeResult.Success)
+            val success = result as StreamAudioProbeResult.Success
+            assertTrue(success.hasLatino)
+            assertEquals(ProbeProvenance.HLS_PLAYLIST, success.provenance)
+        }
+    }
+
+    @Test
+    fun `probe verifies faststart MP4 audio track`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(206)
+                    .setBody(Buffer().write(mp4WithAudio(language = "spa", codec = "ac-3")))
+            )
+
+            val result = newService().probeStreamAudio(
+                httpStream(server.url("/movie.mp4").toString())
+            )
+
+            assertTrue(result is StreamAudioProbeResult.Success)
+            val success = result as StreamAudioProbeResult.Success
+            assertTrue(success.hasCastellano)
+            assertEquals(ProbeProvenance.MP4_MOOV, success.provenance)
+            assertEquals("ac-3", success.tracks.single().codec)
+        }
+    }
+
+    private fun mp4WithAudio(language: String, codec: String): ByteArray {
+        fun u32(value: Int) = byteArrayOf(
+            (value ushr 24).toByte(),
+            (value ushr 16).toByte(),
+            (value ushr 8).toByte(),
+            value.toByte()
+        )
+
+        fun box(type: String, content: ByteArray): ByteArray =
+            ByteArrayOutputStream().apply {
+                write(u32(8 + content.size))
+                write(type.toByteArray(Charsets.US_ASCII))
+                write(content)
+            }.toByteArray()
+
+        fun fullBox(type: String, payload: ByteArray) =
+            box(type, byteArrayOf(0, 0, 0, 0) + payload)
+
+        val lang = ((language[0].code - 0x60) shl 10) or
+            ((language[1].code - 0x60) shl 5) or
+            (language[2].code - 0x60)
+        val mdhd = fullBox(
+            "mdhd",
+            ByteArray(4) + ByteArray(4) + u32(1_000) + ByteArray(4) +
+                byteArrayOf((lang shr 8).toByte(), lang.toByte())
+        )
+        val hdlr = fullBox(
+            "hdlr",
+            ByteArray(4) + "soun".toByteArray(Charsets.US_ASCII) + ByteArray(12) + byteArrayOf(0)
+        )
+        val stsd = fullBox("stsd", u32(1) + box(codec, ByteArray(8)))
+        val mdia = box("mdia", mdhd + hdlr + box("minf", box("stbl", stsd)))
+
+        return box(
+            "ftyp",
+            "isom".toByteArray(Charsets.US_ASCII) + u32(0x200) +
+                "isomiso2".toByteArray(Charsets.US_ASCII)
+        ) + box("moov", box("trak", mdia))
+    }
+
     private companion object {
         val ebmlHeader = byteArrayOf(0x1A, 0x45, 0xDF.toByte(), 0xA3.toByte())
 

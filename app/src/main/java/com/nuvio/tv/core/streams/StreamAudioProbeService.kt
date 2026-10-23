@@ -3,6 +3,8 @@ package com.nuvio.tv.core.streams
 import android.util.Log
 import com.nuvio.tv.core.debrid.DirectDebridResolveResult
 import com.nuvio.tv.core.debrid.DirectDebridResolver
+import com.nuvio.tv.core.streams.parser.HlsPlaylistAudioParser
+import com.nuvio.tv.core.streams.parser.Mp4MoovAudioParser
 import com.nuvio.tv.domain.model.Stream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -137,10 +139,27 @@ class StreamAudioProbeService @Inject constructor(
     }
 
     private fun probeUrl(url: String): StreamAudioProbeResult {
-        val fetch = fetchHeaderBytes(url)
-        fetch.rateLimited?.let { return it }
-        val headerBytes = fetch.bytes ?: return StreamAudioProbeResult.Inconclusive
+        val head = fetchBytes(url, "bytes=0-${HEADER_RANGE_BYTES - 1}")
+        head.rateLimited?.let { return it }
+        val headerBytes = head.bytes ?: return StreamAudioProbeResult.Inconclusive
 
+        // 1. HLS master playlist (plain text)
+        val headText = String(
+            headerBytes,
+            0,
+            minOf(headerBytes.size, 64),
+            Charsets.UTF_8
+        )
+        if (HlsPlaylistAudioParser.isPlaylist(headText)) {
+            val tracks = HlsPlaylistAudioParser.parse(String(headerBytes, Charsets.UTF_8))
+            return if (tracks.isNotEmpty()) {
+                evaluateAudioTracks(tracks, ProbeProvenance.HLS_PLAYLIST)
+            } else {
+                StreamAudioProbeResult.Inconclusive
+            }
+        }
+
+        // 2. Matroska / WebM (EBML)
         if (isEbmlHeader(headerBytes)) {
             val tracks = parseMkvAudioTracks(headerBytes)
             if (tracks.isNotEmpty()) {
@@ -149,8 +168,28 @@ class StreamAudioProbeService @Inject constructor(
             }
         }
 
+        // 3. MP4 / MOV: moov is either in the head (faststart) or at the tail.
+        if (isMp4Header(headerBytes)) {
+            var tracks = Mp4MoovAudioParser.parse(headerBytes)
+            if (tracks.isEmpty() && headerBytes.size.toLong() >= HEADER_RANGE_BYTES) {
+                val tail = fetchBytes(url, "bytes=-$HEADER_RANGE_BYTES")
+                tail.rateLimited?.let { return it }
+                tail.bytes?.let { tracks = Mp4MoovAudioParser.parse(it) }
+            }
+            if (tracks.isNotEmpty()) {
+                return evaluateAudioTracks(tracks, ProbeProvenance.MP4_MOOV)
+            }
+        }
+
         return StreamAudioProbeResult.Inconclusive
     }
+
+    private fun isMp4Header(bytes: ByteArray): Boolean =
+        bytes.size >= 8 &&
+            bytes[4] == 'f'.code.toByte() &&
+            bytes[5] == 't'.code.toByte() &&
+            bytes[6] == 'y'.code.toByte() &&
+            bytes[7] == 'p'.code.toByte()
 
     private fun isEbmlHeader(bytes: ByteArray): Boolean =
         bytes.size >= 4 &&
@@ -164,7 +203,7 @@ class StreamAudioProbeService @Inject constructor(
         val rateLimited: StreamAudioProbeResult.RateLimited? = null
     )
 
-    private fun fetchHeaderBytes(url: String): HeaderFetch {
+    private fun fetchBytes(url: String, range: String): HeaderFetch {
         // Derive a client with a hard call timeout so a stalled CDN cannot keep
         // an IO thread (and a debrid range request) alive past the probe budget.
         // newBuilder() shares the dispatcher and connection pool with the
@@ -175,7 +214,7 @@ class StreamAudioProbeService @Inject constructor(
         return runCatching {
             val request = Request.Builder()
                 .url(url)
-                .header("Range", "bytes=0-${HEADER_RANGE_BYTES - 1}")
+                .header("Range", range)
                 .build()
             probeClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
