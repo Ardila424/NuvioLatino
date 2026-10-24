@@ -310,6 +310,7 @@ class StreamScreenViewModel @Inject constructor(
     }
 
     private fun refreshBadgesWithLatinTitles() {
+        if (!latinoFeaturesEnabled) return
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             val currentAddons = _uiState.value.addonStreams
             if (currentAddons.isEmpty()) return@launch
@@ -380,7 +381,10 @@ class StreamScreenViewModel @Inject constructor(
         batchProbeStarted = true
         val candidates = allStreams
             .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
-            .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+            .sortedWith(
+                compareByDescending<Stream> { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
+                    .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+            )
             .take(BATCH_PROBE_COUNT)
         batchProbeJob = viewModelScope.launch { runBatchProbe(candidates) }
     }
@@ -424,7 +428,10 @@ class StreamScreenViewModel @Inject constructor(
         if (allStreams.isEmpty()) return
         val candidates = allStreams
             .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
-            .sortedByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+            .sortedWith(
+                compareByDescending<Stream> { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
+                    .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+            )
             .filter { !probedStreamKeys.contains(it.badgeMergeKey()) }
             .take(BATCH_PROBE_COUNT)
         if (candidates.isEmpty()) return
@@ -669,7 +676,7 @@ class StreamScreenViewModel @Inject constructor(
         }
 
         val cleanImdbId = (contentId ?: videoId).substringBefore(":")
-        if (cleanImdbId.startsWith("tt") && latinAlternativeTitles.isEmpty()) {
+        if (latinoFeaturesEnabled && cleanImdbId.startsWith("tt") && latinAlternativeTitles.isEmpty()) {
             viewModelScope.launch {
                 val titles = tmdbService.getLatinAlternativeTitles(cleanImdbId, contentType)
                 if (titles.isNotEmpty()) {
