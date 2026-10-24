@@ -1415,6 +1415,9 @@
     <string name="settings_stream_size_badges_description">Muestra etiquetas de tamaño de archivo en la lista de fuentes y en los paneles del reproductor.</string>
     <string name="settings_stream_badges_in_player_title">Mostrar en el reproductor</string>
     <string name="settings_stream_badges_in_player_description">Muestra distintivos para el vídeo y audio en reproducción debajo del título del reproductor.</string>
+    <string name="settings_stream_player_badges_title">Insignias en el reproductor</string>
+    <string name="settings_stream_player_badges_description">Muestra las insignias de calidad y audio mientras reproduces.</string>
+    <string name="settings_stream_player_badges_same">Mismas insignias que en la lista de fuentes</string>
     <string name="settings_stream_addon_logo_title">Logotipo del complemento</string>
     <string name="settings_stream_addon_logo_description">Muestra el logotipo y el nombre del complemento junto a las fuentes de vídeo.</string>
     <string name="settings_stream_display_section">Visualización</string>
@@ -1775,7 +1778,7 @@
     <string name="catalog_order_disable">Deshabilitar</string>
 
 
-    <string name="stream_filter_remux">Solo REMUX</string>
+    <string name="stream_filter_remux">REMUX</string>
     <string name="stream_filter_latino_verified">Solo Latino</string>
     <string name="stream_filter_spanish">Español / Latino</string>
     <string name="stream_filter_4k">4K UHD</string>
