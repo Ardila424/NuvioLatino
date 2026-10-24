@@ -171,7 +171,7 @@ fun HeroCarousel(
         // Crossfade between slides
         Crossfade(
             targetState = activeIndex,
-            animationSpec = tween(300),
+            animationSpec = tween(240),
             label = "heroSlide"
         ) { index ->
             val item = items.getOrNull(index) ?: return@Crossfade

@@ -93,6 +93,7 @@ import com.nuvio.tv.ui.components.ImdbRatingSourceLabel
 import com.nuvio.tv.ui.components.LightweightCard
 import com.nuvio.tv.ui.components.NuvioDialog
 import com.nuvio.tv.ui.components.WatchedMarker
+import com.nuvio.tv.ui.theme.NuvioFocus
 import com.nuvio.tv.ui.theme.NuvioTheme
 import com.nuvio.tv.domain.model.CardDepthSurface
 import com.nuvio.tv.ui.components.LocalCardDepthStyle
@@ -870,7 +871,8 @@ private fun EpisodeCard(
         focusedBorder = Border(
             border = focusRingBorder,
             shape = shape
-        )
+        ),
+        focusedScale = NuvioFocus.tokens.subtleScale
     ) {
         Box(
             modifier = Modifier

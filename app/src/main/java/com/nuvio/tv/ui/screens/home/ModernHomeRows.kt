@@ -2,6 +2,7 @@
 
 package com.nuvio.tv.ui.screens.home
 
+import com.nuvio.tv.ui.theme.NuvioFocus
 import com.nuvio.tv.ui.theme.NuvioTheme
 
 import android.view.KeyEvent as AndroidKeyEvent
@@ -1377,7 +1378,8 @@ private fun ModernCarouselCard(
             shape = cardShape,
             containerColor = backgroundCardColor,
             focusedBorder = effectiveFocusedBorder,
-            focusedGlow = effectiveFocusGlow
+            focusedGlow = effectiveFocusGlow,
+            focusedScale = NuvioFocus.tokens.scale
         ) {
             Box(
                 modifier = Modifier

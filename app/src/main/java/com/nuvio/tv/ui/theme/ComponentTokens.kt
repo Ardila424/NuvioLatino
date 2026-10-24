@@ -90,7 +90,7 @@ object NuvioComponents {
             cornerRadius = 12.dp,
             contentPadding = 8.dp,
             focusedBorderWidth = 2.dp,
-            focusedScale = 1.02f
+            focusedScale = 1.04f
         ),
         backdropCard = NuvioCardComponentTokens(
             width = 320.dp,

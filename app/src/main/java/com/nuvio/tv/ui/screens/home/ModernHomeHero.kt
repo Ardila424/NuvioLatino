@@ -177,7 +177,7 @@ internal fun ModernHeroMediaLayer(
     Box(modifier = modifier) {
         androidx.compose.animation.Crossfade(
             targetState = imageModel,
-            animationSpec = tween(durationMillis = NuvioMotion.tokens.durations.overlay),
+            animationSpec = tween(durationMillis = 260),
             label = "heroBackdropCrossfade"
         ) { model ->
             AsyncImage(

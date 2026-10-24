@@ -69,6 +69,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.nuvio.tv.ui.screens.home.ContinueWatchingItem
+import com.nuvio.tv.ui.theme.NuvioFocus
 import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
@@ -673,7 +674,8 @@ fun ContinueWatchingCard(
                 border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
                 shape = cwCardShape
             )
-        }
+        },
+        focusedScale = NuvioFocus.tokens.subtleScale
     ) {
         if (isWideStyle) {
             WideCardContent(
