@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,17 +42,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.launch as coroutineLaunch
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.tv.material3.Border
+import androidx.tv.material3.FilterChip
+import androidx.tv.material3.FilterChipDefaults
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.ui.components.LoadingIndicator
 import com.nuvio.tv.ui.components.SourceChipStatus
+import com.nuvio.tv.ui.components.hasVerifiedLatinoBadge
 import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.ui.res.stringResource
 import com.nuvio.tv.R
@@ -78,6 +86,19 @@ internal fun StreamSourcesSidePanel(
     val scope = rememberCoroutineScope()
     var focusJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val closeButtonFocusRequester = remember { FocusRequester() }
+    val latinoFeaturesEnabled = AppLanguage.latinoFeaturesEnabled(LocalConfiguration.current)
+    var onlyLatino by rememberSaveable { mutableStateOf(false) }
+    val visibleStreams = remember(uiState.sourceFilteredStreams, onlyLatino) {
+        if (!onlyLatino) {
+            uiState.sourceFilteredStreams
+        } else {
+            uiState.sourceFilteredStreams.filter { it.hasVerifiedLatinoBadge() }
+        }
+    }
+
+    LaunchedEffect(latinoFeaturesEnabled) {
+        if (!latinoFeaturesEnabled) onlyLatino = false
+    }
 
     val orderedAddonNames = remember(uiState.sourceAvailableAddons, uiState.sourceChips) {
         buildList {
@@ -100,9 +121,9 @@ internal fun StreamSourcesSidePanel(
         }
     }
 
-    val streamKeys = remember(uiState.sourceFilteredStreams) {
+    val streamKeys = remember(visibleStreams) {
         val seen = mutableMapOf<String, Int>()
-        uiState.sourceFilteredStreams.map { stream ->
+        visibleStreams.map { stream ->
             val base = stream.stableKey(0)
             val count = seen.getOrDefault(base, 0)
             seen[base] = count + 1
@@ -305,6 +326,64 @@ internal fun StreamSourcesSidePanel(
                 }
             }
 
+            if (latinoFeaturesEnabled && uiState.sourceFilteredStreams.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(NuvioTheme.spacing.xs))
+                var soloFocused by remember { mutableStateOf(false) }
+                val soloTextColor = when {
+                    soloFocused || onlyLatino -> NuvioTheme.colors.OnSecondary
+                    else -> NuvioTheme.colors.TextSecondary
+                }
+                FilterChip(
+                    selected = onlyLatino,
+                    onClick = {
+                        onlyLatino = !onlyLatino
+                        userMovedFromFirstResult = false
+                        firstResultFocusAssigned = false
+                    },
+                    modifier = Modifier
+                        .height(32.dp)
+                        .onFocusChanged { soloFocused = it.isFocused },
+                    colors = FilterChipDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.10f),
+                        focusedContainerColor = NuvioTheme.colors.Secondary,
+                        selectedContainerColor = NuvioTheme.colors.Secondary,
+                        focusedSelectedContainerColor = NuvioTheme.colors.Secondary,
+                        contentColor = soloTextColor,
+                        focusedContentColor = soloTextColor,
+                        selectedContentColor = soloTextColor,
+                        focusedSelectedContentColor = soloTextColor
+                    ),
+                    border = FilterChipDefaults.border(
+                        border = Border(
+                            border = BorderStroke(
+                                NuvioTheme.spacing.hairline,
+                                Color.White.copy(alpha = 0.18f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ),
+                        focusedBorder = Border(
+                            border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                            shape = RoundedCornerShape(16.dp)
+                        ),
+                        selectedBorder = Border(
+                            border = BorderStroke(NuvioTheme.spacing.hairline, NuvioTheme.colors.Primary),
+                            shape = RoundedCornerShape(16.dp)
+                        ),
+                        focusedSelectedBorder = Border(
+                            border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    ),
+                    shape = FilterChipDefaults.shape(shape = RoundedCornerShape(16.dp))
+                ) {
+                    Text(
+                        text = stringResource(R.string.sources_only_latino),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = soloTextColor
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(NuvioTheme.spacing.lg))
 
             when {
@@ -327,9 +406,11 @@ internal fun StreamSourcesSidePanel(
                     )
                 }
 
-                uiState.sourceFilteredStreams.isEmpty() -> {
+                visibleStreams.isEmpty() -> {
                     Text(
-                        text = stringResource(R.string.sources_no_streams),
+                        text = stringResource(
+                            if (onlyLatino) R.string.sources_no_latino_verified else R.string.sources_no_streams
+                        ),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -337,7 +418,7 @@ internal fun StreamSourcesSidePanel(
 
                 else -> {
                     val currentStreamIndex = findCurrentStreamIndex(
-                        streams = uiState.sourceFilteredStreams,
+                        streams = visibleStreams,
                         currentStreamInfoHash = uiState.currentStreamInfoHash,
                         currentStreamFileIdx = uiState.currentStreamFileIdx,
                         currentStreamAddonName = uiState.currentStreamAddonName,
@@ -352,8 +433,8 @@ internal fun StreamSourcesSidePanel(
                             streamListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                         }
                     }
-                    LaunchedEffect(lastVisibleIndex.value, uiState.sourceFilteredStreams.size) {
-                        if (lastVisibleIndex.value >= uiState.sourceFilteredStreams.size - 20) {
+                    LaunchedEffect(lastVisibleIndex.value, visibleStreams.size) {
+                        if (lastVisibleIndex.value >= visibleStreams.size - 20) {
                             onExpandStreams()
                         }
                     }
@@ -428,7 +509,7 @@ internal fun StreamSourcesSidePanel(
                                 }
                             }
                     ) {
-                        itemsIndexed(uiState.sourceFilteredStreams, key = { index, _ ->
+                        itemsIndexed(visibleStreams, key = { index, _ ->
                             streamKeys[index]
                         }) { index, stream ->
                             StreamItem(

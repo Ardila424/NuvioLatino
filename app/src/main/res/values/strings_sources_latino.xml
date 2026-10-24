@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sources_only_latino">Latino only</string>
+    <string name="sources_no_latino_verified">No verified Latino sources here. Turn off the filter or verify more.</string>
+</resources>

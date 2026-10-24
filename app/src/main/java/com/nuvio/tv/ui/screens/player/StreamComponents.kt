@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,15 +56,19 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import com.nuvio.tv.core.streams.StreamBadgePlacement
+import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.ui.components.SourceChipItem
 import com.nuvio.tv.ui.components.SourceChipStatus
 import com.nuvio.tv.ui.components.SourceStatusFilterChip
-import com.nuvio.tv.ui.components.StreamBadgeChips
+import com.nuvio.tv.ui.components.StreamInlineBadges
+import com.nuvio.tv.ui.components.displayBadges
 import com.nuvio.tv.ui.theme.NuvioTheme
 import com.nuvio.tv.ui.util.contentTextDirection
 import com.nuvio.tv.ui.util.toAbsoluteAlignment
@@ -81,6 +87,7 @@ internal fun StreamItem(
     isCurrentStream: Boolean = false,
     showFileSizeBadges: Boolean = true,
     showAddonLogo: Boolean = true,
+    showLatinoBadges: Boolean = true,
     badgePlacement: StreamBadgePlacement = StreamBadgePlacement.BOTTOM,
     onClick: () -> Unit,
     onFocusChanged: ((Boolean) -> Unit)? = null,
@@ -91,7 +98,11 @@ internal fun StreamItem(
     val unknownStreamLabel = stringResource(R.string.stream_unknown)
     val streamName = remember(stream, unknownStreamLabel) { stream.getDisplayNameOrNull() ?: unknownStreamLabel }
     val streamDescription = remember(stream) { stream.getDisplayDescription() }
-    val hasBadges = stream.badges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null)
+    val latinoFeaturesEnabled = AppLanguage.latinoFeaturesEnabled(LocalConfiguration.current)
+    val displayBadges = remember(stream, showLatinoBadges, latinoFeaturesEnabled) {
+        stream.displayBadges(showLatinoBadges && latinoFeaturesEnabled)
+    }
+    val hasBadges = displayBadges.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints?.videoSize != null)
     // Pre-upscale: decode at 2× target pixels so the hardware compositor
     // has enough pixel data for smooth edges inside Card RenderNodes.
     val logoDecodeSize = remember(density) {
@@ -154,8 +165,8 @@ internal fun StreamItem(
                 verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
             ) {
                 if (hasBadges && badgePlacement == StreamBadgePlacement.TOP) {
-                    StreamBadgeChips(
-                        badges = stream.badges,
+                    InlineStreamBadges(
+                        badges = displayBadges,
                         fileSizeBytes = stream.behaviorHints?.videoSize,
                         showFileSizeBadge = showFileSizeBadges
                     )
@@ -207,8 +218,8 @@ internal fun StreamItem(
                 }
 
                 if (hasBadges && badgePlacement == StreamBadgePlacement.BOTTOM) {
-                    StreamBadgeChips(
-                        badges = stream.badges,
+                    InlineStreamBadges(
+                        badges = displayBadges,
                         fileSizeBytes = stream.behaviorHints?.videoSize,
                         showFileSizeBadge = showFileSizeBadges,
                         modifier = Modifier.padding(top = NuvioTheme.spacing.xxs)
@@ -245,6 +256,27 @@ internal fun StreamItem(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InlineStreamBadges(
+    badges: List<StreamBadge>,
+    fileSizeBytes: Long?,
+    showFileSizeBadge: Boolean,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
+    ) {
+        StreamInlineBadges(
+            badges = badges,
+            fileSizeBytes = fileSizeBytes,
+            showFileSizeBadge = showFileSizeBadge
+        )
     }
 }
 

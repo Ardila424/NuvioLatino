@@ -96,17 +96,17 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.nuvio.tv.core.player.ExternalPlayerLauncher
-import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePlacement
 import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.core.streams.StreamBadgeSettings
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.domain.model.Stream
-import com.nuvio.tv.domain.model.StreamBadge
 import com.nuvio.tv.ui.components.SourceChipItem
 import com.nuvio.tv.ui.components.SourceChipStatus
 import com.nuvio.tv.ui.components.P2pConsentDialog
 import com.nuvio.tv.ui.components.StreamInlineBadges
+import com.nuvio.tv.ui.components.displayBadges
+import com.nuvio.tv.ui.components.hasVerifiedLatinoBadge
 import com.nuvio.tv.ui.components.StreamOption
 import com.nuvio.tv.ui.components.StreamOptionDialog
 import com.nuvio.tv.ui.components.StreamRefreshChip
@@ -952,12 +952,22 @@ private fun RightStreamSection(
                     else allStreams.filter { it.addonName == selectedAddonFilter }
                 }
                 val allSourcesLabel = stringResource(R.string.stream_filter_all)
-                val addonOptions = remember(orderedAddonNames, allStreams, allSourcesLabel) {
+                val addonOptions = remember(orderedAddonNames, allStreams, allSourcesLabel, latinoFeaturesEnabled) {
                     val counts = allStreams.groupingBy { it.addonName }.eachCount()
+                    val verifiedCounts = if (latinoFeaturesEnabled) {
+                        allStreams
+                            .filter { it.hasVerifiedLatinoBadge() }
+                            .groupingBy { it.addonName }
+                            .eachCount()
+                    } else {
+                        emptyMap()
+                    }
+                    fun detail(total: Int, verified: Int): String =
+                        if (verified > 0) "$total · $verified ✓" else total.toString()
                     buildList {
-                        add(StreamOption(null, allSourcesLabel, allStreams.size.toString()))
+                        add(StreamOption(null, allSourcesLabel, detail(allStreams.size, verifiedCounts.values.sum())))
                         orderedAddonNames.forEach { name ->
-                            add(StreamOption(name, name, (counts[name] ?: 0).toString()))
+                            add(StreamOption(name, name, detail(counts[name] ?: 0, verifiedCounts[name] ?: 0)))
                         }
                     }
                 }
@@ -1597,26 +1607,7 @@ private fun StreamCard(
     // available. Re-detect here (cached per stream) and merge with the badges
     // already attached by probes/imported rules.
     val displayBadges = remember(stream, showLatinoBadges) {
-        val native = NativeStreamBadgeDetector.detectBadges(stream)
-        val allBadges = if (native.isEmpty()) {
-            stream.badges
-        } else {
-            val merged = LinkedHashMap<String, StreamBadge>(stream.badges.size + native.size)
-            stream.badges.forEach { merged[it.name] = it }
-            native.forEach { merged.putIfAbsent(it.name, it) }
-            merged.values.toList()
-        }
-        // The explicit-name detector can add LATINO (Verificado) while an older
-        // plain LATINO is still in stream.badges. Keep only the strongest one.
-        val hasVerifiedLatino = allBadges.any { it.name.contains("LATINO (Verificado)") }
-        val hasNoLatino = allBadges.any { it.name.startsWith("🚫 Sin Latino") }
-        val cleaned = allBadges.filterNot { badge ->
-            (hasNoLatino &&
-                badge.name.contains("LATINO", ignoreCase = true) &&
-                !badge.name.contains("Sin Latino", ignoreCase = true)) ||
-                (hasVerifiedLatino && badge.name == "🇲🇽 LATINO")
-        }
-        if (showLatinoBadges) cleaned else cleaned.filterNot { it.isLatinoProvenanceBadge() }
+        stream.displayBadges(showLatinoBadges)
     }
     var isFocused by remember { mutableStateOf(false) }
 
@@ -1777,12 +1768,6 @@ private fun StreamCard(
     }
 }
 }
-
-private fun StreamBadge.isLatinoProvenanceBadge(): Boolean =
-    name.contains("LATINO", ignoreCase = true) ||
-        name.contains("CASTELLANO", ignoreCase = true) ||
-        name.contains("ESPAÑOL", ignoreCase = true) ||
-        name.contains("SPANISH", ignoreCase = true)
 
 @Composable
 internal fun PlayerChoiceDialog(
