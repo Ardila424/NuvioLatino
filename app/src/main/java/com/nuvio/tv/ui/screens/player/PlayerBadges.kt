@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.tv.core.streams.SpanishAudioRegion
+import com.nuvio.tv.core.streams.SpanishAudioRegionClassifier
 import com.nuvio.tv.core.streams.StreamBadgeMatcher
 import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.domain.model.StreamBadge
@@ -141,24 +143,20 @@ private fun buildPlayerTechBadges(
     return badges
 }
 
-private val LATINO_LANGUAGE_CODES = setOf(
-    "es-419", "es-005", "es-mx", "es-ar", "es-co", "es-ve", "es-cl", "es-pe",
-    "es-ec", "es-uy", "es-py", "es-bo", "es-do", "es-cr", "es-gt", "es-hn",
-    "es-ni", "es-pa", "es-pr", "es-sv", "es-cu", "la", "lat", "latino"
-)
-
 private fun playerLanguageLabel(audio: TrackInfo?): String? {
     val code = audio?.language?.lowercase()?.trim().orEmpty()
     val name = audio?.name?.lowercase().orEmpty()
     if (code.isEmpty() && name.isEmpty()) return null
 
-    val isLatinoNamed = name.contains("latino") || name.contains("latinoam")
-    val isCastellanoNamed = name.contains("castellano")
-    val base = code.substringBefore('-')
+    when (SpanishAudioRegionClassifier.classify(audio?.language, null, audio?.name)) {
+        SpanishAudioRegion.LATINO -> return "ESPAÑOL (LATINO)"
+        SpanishAudioRegion.CASTELLANO -> return "ESPAÑOL (ESPAÑA)"
+        SpanishAudioRegion.SPANISH -> return "ESPAÑOL"
+        SpanishAudioRegion.OTHER -> Unit
+    }
 
+    val base = code.substringBefore('-')
     return when {
-        isLatinoNamed || code in LATINO_LANGUAGE_CODES -> "ESPAÑOL (LATINO)"
-        isCastellanoNamed || base == "es" || base == "spa" -> "ESPAÑOL"
         base == "en" || base == "eng" -> "ENGLISH"
         base == "pt" || base == "por" -> "PORTUGUÊS"
         base == "fr" || base == "fra" || base == "fre" -> "FRANÇAIS"

@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -54,6 +55,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.nuvio.tv.R
 import com.nuvio.tv.ui.screens.detail.requestFocusAfterFrames
+import com.nuvio.tv.core.streams.SpanishAudioRegion
+import com.nuvio.tv.core.streams.SpanishAudioRegionClassifier
 import com.nuvio.tv.ui.util.languageCodeToName
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -343,9 +346,25 @@ private fun AudioTrackCard(
                     style = MaterialTheme.typography.titleMedium,
                     color = primaryTextColor
                 )
-                if (!track.language.isNullOrBlank() && track.language != "und") {
+                val displayLocale = LocalConfiguration.current.locales[0]
+                val region = remember(track.language, track.name) {
+                    SpanishAudioRegionClassifier.classify(track.language, null, track.name)
+                }
+                val baseLanguage = if (region != SpanishAudioRegion.OTHER) {
+                    languageCodeToName("es", displayLocale)
+                } else {
+                    track.language
+                        ?.takeIf { it.isNotBlank() && it != "und" }
+                        ?.let { languageCodeToName(it, displayLocale) }
+                }
+                val regionSuffix = when (region) {
+                    SpanishAudioRegion.LATINO -> stringResource(R.string.audio_region_latino)
+                    SpanishAudioRegion.CASTELLANO -> stringResource(R.string.audio_region_spain)
+                    else -> null
+                }
+                if (baseLanguage != null) {
                     Text(
-                        text = languageCodeToName(track.language),
+                        text = if (regionSuffix != null) "$baseLanguage ($regionSuffix)" else baseLanguage,
                         style = MaterialTheme.typography.bodySmall,
                         color = secondaryTextColor
                     )

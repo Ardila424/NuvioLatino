@@ -229,7 +229,7 @@ internal fun resolveLanguageNameAlias(tokenized: String): String? {
         ?.value
 }
 
-fun languageCodeToName(code: String): String {
+fun languageCodeToName(code: String, displayLocale: Locale = Locale.getDefault()): String {
     val lowerCode = code.lowercase()
     if (lowerCode == "none") return "None"
     if (lowerCode == "und" || lowerCode == "unknown" || lowerCode == "unk") {
@@ -250,17 +250,17 @@ fun languageCodeToName(code: String): String {
     return try {
         val locale = Locale.forLanguageTag(bcp47)
         val name = if (locale.country.isNotEmpty()) {
-            val displayName = locale.getDisplayName(Locale.getDefault())
+            val displayName = locale.getDisplayName(displayLocale)
             // Locale.forLanguageTag("es-419") returns country="419" which Android may not resolve
             if (displayName.contains("419")) {
-                val langName = locale.getDisplayLanguage(Locale.getDefault())
+                val langName = locale.getDisplayLanguage(displayLocale)
                     .replaceFirstChar { it.uppercase() }
                 "$langName (Latinoamérica)"
             } else {
                 displayName
             }
         } else {
-            locale.getDisplayLanguage(Locale.getDefault())
+            locale.getDisplayLanguage(displayLocale)
         }
         if (name.isNotBlank() && name != bcp47) name.replaceFirstChar { it.uppercase() }
         else code.uppercase()
