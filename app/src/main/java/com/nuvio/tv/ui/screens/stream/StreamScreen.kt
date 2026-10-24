@@ -106,7 +106,6 @@ import com.nuvio.tv.ui.components.SourceChipStatus
 import com.nuvio.tv.ui.components.P2pConsentDialog
 import com.nuvio.tv.ui.components.StreamInlineBadges
 import com.nuvio.tv.ui.components.displayBadges
-import com.nuvio.tv.ui.components.hasVerifiedLatinoBadge
 import com.nuvio.tv.ui.components.StreamOption
 import com.nuvio.tv.ui.components.StreamOptionDialog
 import com.nuvio.tv.ui.components.StreamRefreshChip
@@ -956,7 +955,9 @@ private fun RightStreamSection(
                     val counts = allStreams.groupingBy { it.addonName }.eachCount()
                     val verifiedCounts = if (latinoFeaturesEnabled) {
                         allStreams
-                            .filter { it.hasVerifiedLatinoBadge() }
+                            .filter { stream ->
+                                stream.badges.any { it.name.contains("LATINO (Verificado)") }
+                            }
                             .groupingBy { it.addonName }
                             .eachCount()
                     } else {
