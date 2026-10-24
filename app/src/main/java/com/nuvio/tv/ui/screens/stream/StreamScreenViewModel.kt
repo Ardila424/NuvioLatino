@@ -486,6 +486,14 @@ class StreamScreenViewModel @Inject constructor(
                 borderColor = "#6B7280"
             )
         }
+        if (result.hasCastellano) {
+            newBadges += StreamBadge(
+                name = "🇪🇸 CASTELLANO",
+                tagColor = "#B45309",
+                textColor = "#FFFFFF",
+                borderColor = "#F59E0B"
+            )
+        }
 
         if (newBadges.isEmpty()) return
 
@@ -497,6 +505,7 @@ class StreamScreenViewModel @Inject constructor(
                             val filteredBadges = s.badges.filterNot {
                                 it.name.contains("LATINO", ignoreCase = true) ||
                                     it.name.contains("Sin Latino", ignoreCase = true) ||
+                                    it.name.contains("CASTELLANO", ignoreCase = true) ||
                                     (result.hasLatino && it.name == "🌐 MULTI")
                             }
                             s.copy(badges = filteredBadges + newBadges)

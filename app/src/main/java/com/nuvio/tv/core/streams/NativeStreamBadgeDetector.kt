@@ -31,6 +31,15 @@ object NativeStreamBadgeDetector {
         """(?i)(^|[^a-z0-9])(latino|latinos|latam|latin|lat|es-419|es419|es-mx|es-ar|es-co|es-cl|es-pe|es-ve|es-ec|mx|mexico|méxico|arg|argentina|spa-lat|spalat|esp-lat|dual[ ._-]?latino|audio[ ._-]?latino|multi[ ._-]?lat)([^a-z0-9]|$)"""
     )
 
+    private val EXPLICIT_CASTELLANO_REGEX = Regex(
+        """(?i)(^|[^a-z0-9])(castellano|castilian|españa|espana|spain|es-es)([^a-z0-9]|$)"""
+    )
+
+    /** Removes "Subtitles: ..." segments so subtitle text can never decide audio language. */
+    private val SUBTITLE_SECTION_REGEX = Regex(
+        """(?i)(\|\s*)?(subtitles?|subs?)\s*:[^|\n\r]*"""
+    )
+
     private val CASTELLANO_REGEX = Regex(
         """(?i)(^|[^a-z0-9])(castellano|español|espanol|spanish|spa)([^a-z0-9]|$)"""
     )
@@ -49,6 +58,7 @@ object NativeStreamBadgeDetector {
         val remux = isRemux(stream)
         val latino = isLatino(stream, latinTitles)
         val explicitLatino = hasExplicitLatinoMarker(stream)
+        val explicitCastellano = hasExplicitCastellanoMarker(stream)
         val castellano = isCastellano(stream)
         val multi = isMulti(stream)
 
@@ -94,7 +104,7 @@ object NativeStreamBadgeDetector {
             )
         }
 
-        if (castellano) {
+        if (castellano && (!explicitLatino || explicitCastellano)) {
             badges += StreamBadge(
                 name = "🇪🇸 CASTELLANO",
                 tagColor = "#B45309",
@@ -241,7 +251,7 @@ object NativeStreamBadgeDetector {
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 
-        val text = candidateTexts(stream).joinToString(" ")
+        val text = audioCandidateTexts(stream).joinToString(" ")
         if (text.contains("🇲🇽")) return true
 
         if (matchesLatinTitle(text, latinTitles)) return true
@@ -250,7 +260,7 @@ object NativeStreamBadgeDetector {
         if (parsedLangs.any { it.equals("la", ignoreCase = true) || it.equals("lat", ignoreCase = true) || it.equals("latino", ignoreCase = true) || it.equals("es-419", ignoreCase = true) || it.equals("latin", ignoreCase = true) }) {
             return true
         }
-        return candidateTexts(stream).any { LATINO_REGEX.containsMatchIn(it) }
+        return audioCandidateTexts(stream).any { LATINO_REGEX.containsMatchIn(it) }
     }
 
     /**
@@ -263,8 +273,7 @@ object NativeStreamBadgeDetector {
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 
-        val text = candidateTexts(stream).joinToString(" ")
-        if (text.contains("🇲🇽")) return true
+        val text = audioCandidateTexts(stream).joinToString(" ")
 
         val explicitRegions = setOf(
             "la", "lat", "latam", "latin", "latino", "es-419", "es419",
@@ -274,21 +283,43 @@ object NativeStreamBadgeDetector {
         val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
         if (parsedLangs.any { it.lowercase() in explicitRegions }) return true
 
-        return candidateTexts(stream).any { EXPLICIT_LATINO_REGEX.containsMatchIn(it) }
+        return audioCandidateTexts(stream).any { EXPLICIT_LATINO_REGEX.containsMatchIn(it) }
+    }
+
+    /**
+     * True only when the audio metadata explicitly names Spain/Castilian.
+     * Generic "spa"/"es" does not count: if the same release also says Latino,
+     * showing ESPAÑOL next to LATINO is misleading.
+     */
+    fun hasExplicitCastellanoMarker(stream: Stream): Boolean {
+        val text = audioCandidateTexts(stream).joinToString(" ")
+        if (text.contains("🇪🇸")) return true
+
+        val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
+        if (parsedLangs.any {
+                it.equals("es-es", ignoreCase = true) ||
+                    it.equals("castellano", ignoreCase = true) ||
+                    it.equals("spain", ignoreCase = true)
+            }
+        ) {
+            return true
+        }
+
+        return audioCandidateTexts(stream).any { EXPLICIT_CASTELLANO_REGEX.containsMatchIn(it) }
     }
 
     fun isCastellano(stream: Stream): Boolean {
         if (hasExplicitLanguagesWithoutSpanish(stream)) return false
         if (hasExplicitFlagsWithoutSpanish(stream)) return false
 
-        val text = candidateTexts(stream).joinToString(" ")
+        val text = audioCandidateTexts(stream).joinToString(" ")
         if (text.contains("🇪🇸")) return true
 
         val parsedLangs = stream.clientResolve?.stream?.raw?.parsed?.languages.orEmpty()
         if (parsedLangs.any { it.equals("es", ignoreCase = true) || it.equals("spa", ignoreCase = true) || it.equals("spanish", ignoreCase = true) || it.equals("castellano", ignoreCase = true) }) {
             return true
         }
-        return candidateTexts(stream).any { CASTELLANO_REGEX.containsMatchIn(it) }
+        return audioCandidateTexts(stream).any { CASTELLANO_REGEX.containsMatchIn(it) }
     }
 
     fun isMulti(stream: Stream): Boolean {
@@ -296,7 +327,7 @@ object NativeStreamBadgeDetector {
         if (parsedLangs.size > 1 || parsedLangs.any { it.equals("multi", ignoreCase = true) }) {
             return true
         }
-        return candidateTexts(stream).any { MULTI_AUDIO_REGEX.containsMatchIn(it) }
+        return audioCandidateTexts(stream).any { MULTI_AUDIO_REGEX.containsMatchIn(it) }
     }
 
     fun is4K(stream: Stream): Boolean {
@@ -331,7 +362,7 @@ object NativeStreamBadgeDetector {
     )
 
     private fun hasExplicitLanguagesWithoutSpanish(stream: Stream): Boolean {
-        val desc = stream.description ?: return false
+        val desc = stream.description?.let(::stripSubtitleSections) ?: return false
         val match = EXPLICIT_LANGUAGES_REGEX.find(desc) ?: return false
         val languagesText = match.groupValues[1].lowercase()
         val hasSpanish = languagesText.contains("spanish") ||
@@ -346,10 +377,18 @@ object NativeStreamBadgeDetector {
     }
 
     private fun hasExplicitFlagsWithoutSpanish(stream: Stream): Boolean {
-        val text = listOfNotNull(stream.description, stream.title, stream.name).joinToString(" ")
+        val text = audioCandidateTexts(stream).joinToString(" ")
         if (text.contains("🇲🇽") || text.contains("🇪🇸")) return false
         return OTHER_AUDIO_FLAGS.any { text.contains(it) }
     }
+
+    private fun stripSubtitleSections(value: String): String =
+        SUBTITLE_SECTION_REGEX.replace(value, " ")
+
+    private fun audioCandidateTexts(stream: Stream): List<String> =
+        candidateTexts(stream)
+            .map(::stripSubtitleSections)
+            .filter { it.isNotBlank() }
 
     private fun candidateTexts(stream: Stream): List<String> {
         val resolve = stream.clientResolve

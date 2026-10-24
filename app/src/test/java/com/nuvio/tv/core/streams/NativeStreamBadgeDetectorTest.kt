@@ -103,11 +103,56 @@ class NativeStreamBadgeDetectorTest {
         assertTrue(NativeStreamBadgeDetector.isSpanishOrLatino(stream))
         val badges = NativeStreamBadgeDetector.detectBadges(stream)
         assertTrue(badges.any { it.name == "💎 REMUX" })
-        assertTrue(
-            badges.any {
-                it.name == "🇲🇽 LATINO (Verificado)" && it.tagStyle == "latino-name"
-            }
+        assertTrue(badges.any { it.name == "🇲🇽 LATINO" })
+        assertFalse(badges.any { it.name.contains("(Verificado)") })
+    }
+
+    @Test
+    fun `does not mark latino or castellano from subtitle text only`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.WEB-DL.mkv",
+            description = "Subtitles: Latino, Spanish, English"
         )
+        assertFalse(NativeStreamBadgeDetector.isLatino(stream))
+        assertFalse(NativeStreamBadgeDetector.isCastellano(stream))
+        assertFalse(NativeStreamBadgeDetector.hasExplicitLatinoMarker(stream))
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertFalse(names.any { it.contains("LATINO") || it.contains("CASTELLANO") })
+    }
+
+    @Test
+    fun `explicit latino audio with Spanish subtitles does not add castellano`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.WEB-DL.mkv",
+            description = "Languages: Latino, English | Subtitles: Spanish, English"
+        )
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue(names.any { it == "🇲🇽 LATINO (Verificado)" })
+        assertFalse(names.any { it.contains("CASTELLANO") })
+    }
+
+    @Test
+    fun `explicit latino and explicit castellano audio show both`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.WEB-DL.mkv",
+            description = "Languages: Latino, Castellano, English | Subtitles: English"
+        )
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue(names.any { it == "🇲🇽 LATINO (Verificado)" })
+        assertTrue(names.any { it == "🇪🇸 CASTELLANO" })
+    }
+
+    @Test
+    fun `mexican flag alone stays likely latino not verified`() {
+        val stream = createStream(
+            filename = "Movie.2024.1080p.WEB-DL.mkv",
+            description = "🌐 / 🇬🇧 / 🇲🇽"
+        )
+        assertTrue(NativeStreamBadgeDetector.isLatino(stream))
+        assertFalse(NativeStreamBadgeDetector.hasExplicitLatinoMarker(stream))
+        val names = NativeStreamBadgeDetector.detectBadges(stream).map { it.name }
+        assertTrue(names.any { it == "🇲🇽 LATINO" })
+        assertFalse(names.any { it.contains("(Verificado)") })
     }
 
     @Test
