@@ -1385,11 +1385,8 @@ private fun MetaDetailsContent(
     var showSynopsisOverlay by rememberSaveable(meta.id) { mutableStateOf(false) }
     var showRandomEpisodeOverlay by rememberSaveable(meta.id) { mutableStateOf(false) }
     var randomEpisodePlaybackPending by rememberSaveable(meta.id) { mutableStateOf(false) }
-    var stoppingShuffle by remember(meta.id) { mutableStateOf(false) }
-    val showRandomEpisodeButton = remember(randomEpisodeEnabled, isSeries, meta.videos, episodeShuffle.enabled) {
-        randomEpisodeEnabled && isSeries && (episodeShuffle.enabled || meta.videos.any {
-            (it.season ?: 0) > 0 && (it.episode ?: 0) > 0
-        })
+    val showRandomEpisodeButton = remember(isSeries, meta.videos) {
+        shouldShowRandomEpisodeButton(isSeries, meta.videos)
     }
     LaunchedEffect(showRandomEpisodeButton) {
         if (!showRandomEpisodeButton) showRandomEpisodeOverlay = false
@@ -2491,21 +2488,8 @@ private fun MetaDetailsContent(
                         onTrailerClick = onTrailerButtonClick,
                         showRandomEpisodeButton = showRandomEpisodeButton,
                         onRandomEpisodeClick = {
-                            if (!episodeShuffle.enabled) {
-                                showRandomEpisodeOverlay = true
-                            } else if (!stoppingShuffle) {
-                                stoppingShuffle = true
-                                coroutineScope.launch {
-                                    try {
-                                        onEpisodeShuffleChange(episodeShuffle.copy(enabled = false))
-                                    } finally {
-                                        stoppingShuffle = false
-                                    }
-                                }
-                            }
+                            showRandomEpisodeOverlay = true
                         },
-                        episodeShuffle = episodeShuffle,
-                        shuffleActionPending = stoppingShuffle,
                         randomEpisodeFocusRequester = randomEpisodeFocusRequester,
                         hideLogoDuringTrailer = hideLogoDuringTrailer,
                         isTrailerPlaying = isTrailerPlaying,

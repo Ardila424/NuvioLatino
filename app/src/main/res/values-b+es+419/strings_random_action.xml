@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="random_episode_action">Episodio aleatorio</string>
+    <string name="random_episode_choose_subtitle">Elige un episodio al azar para reproducirlo una vez.</string>
+</resources>

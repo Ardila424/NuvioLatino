@@ -106,6 +106,22 @@ class DetailEpisodeShuffleTest {
         assertEquals(native, result.nextToWatch)
     }
 
+    @Test
+    fun `random episode action is visible for series with regular episodes`() {
+        assertTrue(shouldShowRandomEpisodeButton(true, videos))
+    }
+
+    @Test
+    fun `random episode action is hidden for movies and specials only`() {
+        assertFalse(shouldShowRandomEpisodeButton(false, videos))
+        assertFalse(
+            shouldShowRandomEpisodeButton(
+                true,
+                listOf(Video("special", "Special", null, null, season = 0, episode = 1, overview = null))
+            )
+        )
+    }
+
     private fun project(
         input: MetaDetailsUiState = state,
         resume: List<WatchProgress> = emptyList(),

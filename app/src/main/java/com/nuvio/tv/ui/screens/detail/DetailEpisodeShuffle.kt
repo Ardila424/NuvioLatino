@@ -54,6 +54,9 @@ internal fun applyDetailShuffle(
     )
 }
 
+internal fun shouldShowRandomEpisodeButton(isSeries: Boolean, videos: List<Video>): Boolean =
+    isSeries && videos.any { (it.season ?: 0) > 0 && (it.episode ?: 0) > 0 }
+
 internal fun resolveHeroPlaybackVideo(
     meta: Meta,
     nextToWatch: NextToWatch?,

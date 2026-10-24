@@ -66,7 +66,10 @@ internal fun EpisodeShuffleDialog(
         starting = true
         scope.launch {
             try {
-                if (onSaveSettings(EpisodeShuffleSettings(enabled = true, includeWatched = includeWatched))) play(episode)
+                // Playing a random episode is a one-shot action. Keep the show's
+                // existing auto-shuffle preference untouched.
+                val settings = shuffleSettings.copy(includeWatched = includeWatched)
+                if (onSaveSettings(settings)) play(episode)
             } finally {
                 starting = false
             }
@@ -95,8 +98,8 @@ internal fun EpisodeShuffleDialog(
 
     NuvioDialog(
         onDismiss = onDismiss,
-        title = stringResource(R.string.random_episode_title),
-        subtitle = stringResource(R.string.shuffle_choose_episodes),
+        title = stringResource(R.string.random_episode_action),
+        subtitle = stringResource(R.string.random_episode_choose_subtitle),
         width = 420.dp
     ) {
         LaunchedEffect(readyPicker != null, focusAll) {

@@ -105,8 +105,6 @@ fun HeroContentSection(
     trailerAvailable: Boolean = false,
     onTrailerClick: () -> Unit = {},
     showRandomEpisodeButton: Boolean = false,
-    episodeShuffle: com.nuvio.tv.domain.model.EpisodeShuffleSettings = com.nuvio.tv.domain.model.EpisodeShuffleSettings(),
-    shuffleActionPending: Boolean = false,
     onRandomEpisodeClick: () -> Unit = {},
     randomEpisodeFocusRequester: FocusRequester? = null,
     hideLogoDuringTrailer: Boolean = false,
@@ -308,8 +306,6 @@ fun HeroContentSection(
 
                         if (showRandomEpisodeButton) {
                             ShuffleButton(
-                                active = episodeShuffle.enabled,
-                                pending = shuffleActionPending,
                                 onClick = onRandomEpisodeClick,
                                 focusRequester = randomEpisodeFocusRequester,
                                 onFocused = onHeroActionFocused
