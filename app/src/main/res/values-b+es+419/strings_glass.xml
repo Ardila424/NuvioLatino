@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_glass_effects">Efectos de cristal</string>
+    <string name="layout_glass_effects_sub">Brillos de cristal sutiles en tarjetas e insignias. Desactívalos si el desplazamiento se siente pesado.</string>
+</resources>

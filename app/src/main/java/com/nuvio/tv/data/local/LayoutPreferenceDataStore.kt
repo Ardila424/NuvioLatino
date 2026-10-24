@@ -125,6 +125,7 @@ class LayoutPreferenceDataStore @Inject constructor(
     private val memoryOnlyVerticalScrollKey = booleanPreferencesKey("memory_only_vertical_scroll")
     private val smoothBringIntoViewEnabledKey = booleanPreferencesKey("smooth_bring_into_view_enabled")
     private val fastHorizontalNavigationEnabledKey = booleanPreferencesKey("fast_horizontal_navigation_enabled")
+    private val glassEffectsEnabledKey = booleanPreferencesKey("glass_effects_enabled")
     private val followAddonsOrderKey = booleanPreferencesKey("follow_addons_order")
     private val composeHighlighterEnabledKey = booleanPreferencesKey("compose_highlighter_enabled")
 
@@ -334,6 +335,10 @@ class LayoutPreferenceDataStore @Inject constructor(
             castEnabled = prefs[cardDepthCastEnabledKey] ?: true,
             trailersEnabled = prefs[cardDepthTrailersEnabledKey] ?: true
         )
+    }
+
+    val glassEffectsEnabled: Flow<Boolean> = profileFlow { prefs ->
+        prefs[glassEffectsEnabledKey] ?: true
     }
 
     val blurUnwatchedEpisodes: Flow<Boolean> = profileFlow { prefs ->
@@ -731,6 +736,12 @@ class LayoutPreferenceDataStore @Inject constructor(
             prefs.remove(cardDepthEpisodeCardsEnabledKey)
             prefs.remove(cardDepthCastEnabledKey)
             prefs.remove(cardDepthTrailersEnabledKey)
+        }
+    }
+
+    suspend fun setGlassEffectsEnabled(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[glassEffectsEnabledKey] = enabled
         }
     }
 

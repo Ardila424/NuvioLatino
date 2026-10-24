@@ -66,6 +66,7 @@ data class LayoutSettingsUiState(
     val posterCardHeightDp: Int = 189,
     val posterCardCornerRadiusDp: Int = 12,
     val cardDepthStyle: CardDepthStyle = CardDepthStyle(),
+    val glassEffectsEnabled: Boolean = true,
     val blurUnwatchedEpisodes: Boolean = false,
     val randomEpisodeEnabled: Boolean = false,
     val episodeOptionsOverlayStyle: EpisodeOptionsOverlayStyle = EpisodeOptionsOverlayStyle.BLUR,
@@ -130,6 +131,7 @@ sealed class LayoutSettingsEvent {
         val surface: CardDepthSurface,
         val enabled: Boolean
     ) : LayoutSettingsEvent()
+    data class SetGlassEffectsEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetBlurUnwatchedEpisodes(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetRandomEpisodeEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetEpisodeOptionsOverlayStyle(val style: EpisodeOptionsOverlayStyle) : LayoutSettingsEvent()
@@ -318,6 +320,11 @@ class LayoutSettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            layoutPreferenceDataStore.glassEffectsEnabled.distinctUntilChanged().collectLatest { enabled ->
+                updateUiStateIfChanged { it.copy(glassEffectsEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
             layoutPreferenceDataStore.blurUnwatchedEpisodes.distinctUntilChanged().collectLatest { enabled ->
                 updateUiStateIfChanged { it.copy(blurUnwatchedEpisodes = enabled) }
             }
@@ -469,6 +476,7 @@ class LayoutSettingsViewModel @Inject constructor(
             is LayoutSettingsEvent.SetCardDepthEdgeCoverage -> setCardDepthEdgeCoverage(event.coverage)
             is LayoutSettingsEvent.SetCardDepthSurfaceEnabled ->
                 setCardDepthSurfaceEnabled(event.surface, event.enabled)
+            is LayoutSettingsEvent.SetGlassEffectsEnabled -> setGlassEffectsEnabled(event.enabled)
             is LayoutSettingsEvent.SetBlurUnwatchedEpisodes -> setBlurUnwatchedEpisodes(event.enabled)
             is LayoutSettingsEvent.SetRandomEpisodeEnabled -> setRandomEpisodeEnabled(event.enabled)
             is LayoutSettingsEvent.SetEpisodeOptionsOverlayStyle -> setEpisodeOptionsOverlayStyle(event.style)
@@ -795,6 +803,13 @@ class LayoutSettingsViewModel @Inject constructor(
         if (_uiState.value.trailer4kEnabled == enabled) return
         viewModelScope.launch {
             trailerSettingsDataStore.setAllow4k(enabled)
+        }
+    }
+
+    private fun setGlassEffectsEnabled(enabled: Boolean) {
+        if (_uiState.value.glassEffectsEnabled == enabled) return
+        viewModelScope.launch {
+            layoutPreferenceDataStore.setGlassEffectsEnabled(enabled)
         }
     }
 

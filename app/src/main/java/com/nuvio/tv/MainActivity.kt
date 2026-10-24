@@ -179,6 +179,7 @@ import com.nuvio.tv.ui.components.BrandWordmark
 import com.nuvio.tv.ui.components.LocalCardDepthStyle
 import com.nuvio.tv.ui.components.LocalLandscapePosterMode
 import com.nuvio.tv.ui.components.LocalAlwaysBackdropWithLogo
+import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
 import com.nuvio.tv.ui.components.ProfileAvatarCircle
 import com.nuvio.tv.ui.navigation.LocalNavViewModelStoreOwner
 import com.nuvio.tv.ui.navigation.NuvioNavHost
@@ -261,6 +262,7 @@ private data class MainUiPrefs(
     val composeHighlighterEnabled: Boolean = false,
     val settingsUiStyle: SettingsUiStyle = SettingsUiStyle.CLASSIC,
     val cardDepthStyle: CardDepthStyle = CardDepthStyle(),
+    val glassEffectsEnabled: Boolean = true,
     val landscapePosterMode: Boolean = false,
     val alwaysBackdropWithLogo: Boolean = false
 )
@@ -567,8 +569,11 @@ open class MainActivity : ComponentActivity() {
                 }
                 val landscapePrefsFlow = combine(
                     layoutPreferenceDataStore.modernLandscapePostersEnabled,
-                    layoutPreferenceDataStore.alwaysShowLandscapeClearlogo
-                ) { landscape, backdropWithLogo -> landscape to backdropWithLogo }
+                    layoutPreferenceDataStore.alwaysShowLandscapeClearlogo,
+                    layoutPreferenceDataStore.glassEffectsEnabled
+                ) { landscape, backdropWithLogo, glassEffects ->
+                    Triple(landscape, backdropWithLogo, glassEffects)
+                }
 
                 combine(
                     themeAndExperienceFlow,
@@ -576,7 +581,7 @@ open class MainActivity : ComponentActivity() {
                     extraFeaturesFlow,
                     layoutPreferenceDataStore.cardDepthStyle,
                     landscapePrefsFlow
-                ) { themePrefs, layoutPrefs, extraPrefs, cardDepthStyle, (landscapePosterMode, alwaysBackdropWithLogo) ->
+                ) { themePrefs, layoutPrefs, extraPrefs, cardDepthStyle, (landscapePosterMode, alwaysBackdropWithLogo, glassEffectsEnabled) ->
                     themePrefs.copy(
                         hasChosenLayout = layoutPrefs.hasChosenLayout,
                         sidebarCollapsed = layoutPrefs.sidebarCollapsed,
@@ -589,6 +594,7 @@ open class MainActivity : ComponentActivity() {
                         composeHighlighterEnabled = extraPrefs.composeHighlighterEnabled,
                         settingsUiStyle = extraPrefs.settingsUiStyle,
                         cardDepthStyle = cardDepthStyle,
+                        glassEffectsEnabled = glassEffectsEnabled,
                         landscapePosterMode = landscapePosterMode,
                         alwaysBackdropWithLogo = alwaysBackdropWithLogo
                     )
@@ -708,6 +714,7 @@ open class MainActivity : ComponentActivity() {
                     LocalFastHorizontalNavigationEnabled provides mainUiPrefs.fastHorizontalNavigationEnabled,
                     LocalRecompositionHighlighterEnabled provides highlighterEnabled,
                     LocalCardDepthStyle provides mainUiPrefs.cardDepthStyle,
+                    LocalGlassEffectsEnabled provides mainUiPrefs.glassEffectsEnabled,
                     LocalLandscapePosterMode provides mainUiPrefs.landscapePosterMode,
                     LocalAlwaysBackdropWithLogo provides mainUiPrefs.alwaysBackdropWithLogo,
                     LocalMemberAccess provides mainUiPrefs.memberAccess,

@@ -2,7 +2,9 @@ package com.nuvio.tv.ui.components
 
 import android.os.Build
 import android.view.KeyEvent as AndroidKeyEvent
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,6 +51,8 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.contentColorFor
 import androidx.tv.material3.surfaceColorAtElevation
+import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
+import com.nuvio.tv.ui.theme.nuvioGlassChrome
 import kotlinx.coroutines.launch
 
 /**
@@ -72,11 +76,23 @@ fun LightweightCard(
     modifier: Modifier = Modifier,
     focusedBorder: Border = Border.None,
     focusedGlow: Glow = Glow.None,
+    focusedScale: Float = 1f,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val pressed by interactionSource.collectIsPressedAsState()
+    val glassEnabled = LocalGlassEffectsEnabled.current
+    // Read the animated value only in the graphics layer, so a focus change
+    // invalidates draw/placement instead of recomposing the card each frame.
+    val focusScale by animateFloatAsState(
+        targetValue = if (focused) focusedScale else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.82f,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "cardFocusScale"
+    )
     val zIndex = animateFloatAsState(
         targetValue = if (focused) FOCUSED_Z_INDEX else NON_FOCUSED_Z_INDEX,
         label = "zIndex"
@@ -126,7 +142,10 @@ fun LightweightCard(
                     }
                     onLongClick { false }
                 }
-                .graphicsLayer(scaleX = 1f, scaleY = 1f)
+                .graphicsLayer {
+                    scaleX = focusScale
+                    scaleY = focusScale
+                }
                 .then(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         CardGlowElement(shape, glowBlurRadiusPx, glowColor)
@@ -150,6 +169,13 @@ fun LightweightCard(
         ) {
             Box(modifier = Modifier.graphicsLayer { alpha = 1f }) {
                 Column(content = content)
+                if (glassEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .nuvioGlassChrome(shape = shape, focused = focused)
+                    )
+                }
             }
         }
     }

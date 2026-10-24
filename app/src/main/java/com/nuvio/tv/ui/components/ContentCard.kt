@@ -74,7 +74,9 @@ import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.CardDepthSurface
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.PosterShape
+import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
 import com.nuvio.tv.ui.theme.NuvioTheme
+import com.nuvio.tv.ui.theme.nuvioGlassChrome
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.CachePolicy
@@ -117,6 +119,7 @@ fun ContentCard(
 ) {
     val cardShape = remember(posterCardStyle.cornerRadius) { RoundedCornerShape(posterCardStyle.cornerRadius) }
     val cardDepthStyle = LocalCardDepthStyle.current
+    val glassEffectsEnabled = LocalGlassEffectsEnabled.current
     val globalLandscape = LocalLandscapePosterMode.current
     val effectivePosterShape = if (globalLandscape) PosterShape.LANDSCAPE else item.posterShape
     val baseCardWidth = when (effectivePosterShape) {
@@ -408,6 +411,11 @@ fun ContentCard(
                         shape = cardShape,
                         surface = CardDepthSurface.POSTERS,
                         style = cardDepthStyle
+                    )
+                    .nuvioGlassChrome(
+                        shape = cardShape,
+                        focused = isFocused,
+                        enabled = glassEffectsEnabled
                     )
             ) {
                 val isPlaceholderItem = imageUrl == PLACEHOLDER_IMAGE_URL

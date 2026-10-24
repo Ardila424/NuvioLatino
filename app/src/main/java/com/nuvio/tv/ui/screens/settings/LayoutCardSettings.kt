@@ -286,6 +286,12 @@ internal fun LayoutPosterCardSection(
         checked = uiState.alwaysShowLandscapeClearlogo,
         onToggle = { onEvent(LayoutSettingsEvent.SetAlwaysShowLandscapeClearlogo(!uiState.alwaysShowLandscapeClearlogo)) }
     )
+    SettingsToggleRow(
+        title = stringResource(R.string.layout_glass_effects),
+        subtitle = stringResource(R.string.layout_glass_effects_sub),
+        checked = uiState.glassEffectsEnabled,
+        onToggle = { onEvent(LayoutSettingsEvent.SetGlassEffectsEnabled(!uiState.glassEffectsEnabled)) }
+    )
     SettingsResetButton(
         text = stringResource(R.string.layout_reset_default),
         onClick = { onEvent(LayoutSettingsEvent.ResetPosterCardStyle) }

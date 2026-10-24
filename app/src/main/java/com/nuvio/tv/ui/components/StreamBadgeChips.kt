@@ -48,6 +48,8 @@ import coil3.request.allowRgb565
 import coil3.request.crossfade
 import coil3.size.Precision
 import com.nuvio.tv.domain.model.StreamBadge
+import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
+import com.nuvio.tv.ui.theme.nuvioGlassChrome
 import okio.Path.Companion.toOkioPath
 import kotlin.math.round
 
@@ -211,6 +213,7 @@ internal fun StreamBadgeMark(
     if (label.isBlank()) return
     val (background, foreground, outline) = compactBadgeColors(badge)
     val shape = RoundedCornerShape(4.dp)
+    val glassEnabled = LocalGlassEffectsEnabled.current
 
     Box(
         modifier = modifier
@@ -222,6 +225,10 @@ internal fun StreamBadgeMark(
             )
             .then(
                 if (outline != Color.Transparent) Modifier.border(1.dp, outline, shape)
+                else Modifier
+            )
+            .then(
+                if (glassEnabled) Modifier.nuvioGlassChrome(shape = shape, focused = false)
                 else Modifier
             )
             .padding(horizontal = horizontalPadding),

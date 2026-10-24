@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_glass_effects">Glass effects</string>
+    <string name="layout_glass_effects_sub">Subtle glass highlights on cards and badges. Turn off if scrolling feels heavy.</string>
+</resources>

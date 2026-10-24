@@ -1,6 +1,8 @@
 package com.nuvio.tv.ui.components
 
+import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
 import com.nuvio.tv.ui.theme.NuvioTheme
+import com.nuvio.tv.ui.theme.nuvioGlassChrome
 
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.animation.core.tween
@@ -84,6 +86,7 @@ fun GridContentCard(
 ) {
     val cardShape = remember(posterCardStyle.cornerRadius) { RoundedCornerShape(posterCardStyle.cornerRadius) }
     val cardDepthStyle = LocalCardDepthStyle.current
+    val glassEffectsEnabled = LocalGlassEffectsEnabled.current
     val density = LocalDensity.current
     val globalLandscape = LocalLandscapePosterMode.current
     val effectivePosterShape = if (globalLandscape) PosterShape.LANDSCAPE else item.posterShape
@@ -203,6 +206,11 @@ fun GridContentCard(
                         shape = cardShape,
                         surface = depthSurface,
                         style = cardDepthStyle
+                    )
+                    .nuvioGlassChrome(
+                        shape = cardShape,
+                        focused = isFocused,
+                        enabled = glassEffectsEnabled
                     )
             ) {
                 val context = LocalContext.current
