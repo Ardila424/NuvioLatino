@@ -176,13 +176,16 @@ internal fun ModernHomeRowsList(
         landscapeCatalogCardWidth,
         landscapeCatalogCardHeight
     ) {
-        val prefetchAheadRows = 1
-        val prefetchItemsPerRow = 1
+        val prefetchAheadRows = 2
+        val prefetchItemsPerRow = 4
         snapshotFlow {
             verticalRowListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
         }
             .distinctUntilChanged()
-            .debounce(240L) // VERTICAL_PREFETCH_DEBOUNCE_MS
+            // Shorter than the old 240 ms: a held vertical scroll changes rows
+            // faster than that, so the old debounce suppressed prefetch exactly
+            // when it was needed. Four cards per row keep the burst bounded.
+            .debounce(80L)
             .collect { lastVisibleRowIndex ->
                 withContext(Dispatchers.IO) {
                     for (rowOffset in 1..prefetchAheadRows) {
@@ -368,7 +371,7 @@ internal fun ModernHomeRowsList(
         ) {
             itemsIndexed(
                 items = carouselRows.list,
-                key = { index, row -> "${row.key}_$index" },
+                key = { _, row -> row.key },
                 contentType = { _, row -> row.apiType ?: "modern_home_row" }
             ) { _, row ->
                 val stableOnContinueWatchingOptions = remember(onContinueWatchingOptions) {

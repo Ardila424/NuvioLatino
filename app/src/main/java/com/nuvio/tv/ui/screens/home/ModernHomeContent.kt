@@ -205,7 +205,10 @@ fun ModernHomeContent(
     val activeRowKeys = carouselLookups.activeRowKeys
     val activeCatalogItemIds = carouselLookups.activeCatalogItemIds
 
-    val nestedPrefetchStrategy = remember { LazyListPrefetchStrategy(nestedPrefetchItemCount = 2) }
+    // Vertical movement tears down whole rows. Pre-compose enough cards for the
+    // next row so a held-Down scroll does not discover an empty row and then
+    // compose every visible card on the frame it enters the viewport.
+    val nestedPrefetchStrategy = remember { LazyListPrefetchStrategy(nestedPrefetchItemCount = 4) }
     val verticalRowListState = rememberLazyListState(
         initialFirstVisibleItemIndex = focusState.verticalScrollIndex,
         initialFirstVisibleItemScrollOffset = focusState.verticalScrollOffset,

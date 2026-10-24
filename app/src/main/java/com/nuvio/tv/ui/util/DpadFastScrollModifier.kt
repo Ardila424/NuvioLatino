@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  * native TV launcher — the list snaps along at a readable pace without
  * tearing on typical TV refresh rates.
  */
-private const val DEFAULT_VERTICAL_VELOCITY_DP_PER_SEC = 3200f
+private const val DEFAULT_VERTICAL_VELOCITY_DP_PER_SEC = 2400f
 
 /**
  * Maximum idle gap between key events before the drag is torn down on its

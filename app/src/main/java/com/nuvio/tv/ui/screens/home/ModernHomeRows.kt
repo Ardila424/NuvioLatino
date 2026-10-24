@@ -148,7 +148,7 @@ import kotlinx.coroutines.flow.debounce
 
 private const val MODERN_HORIZONTAL_FOCUS_DEBOUNCE_MS = 140L
 private const val POSTER_PREFETCH_DISTANCE = 1
-private const val NESTED_PREFETCH_COUNT = 2
+private const val NESTED_PREFETCH_COUNT = 4
 
 internal val LocalVerticalRowsScrolling = compositionLocalOf<State<Boolean>> { mutableStateOf(false) }
 
@@ -1291,21 +1291,11 @@ private fun ModernCarouselCard(
             shape = cardShape
         )
     }
-    // While the user is dragging the list via held DPAD (see LazyColumn-level fast
-    // scroll takeover in ModernHomeContent), hide focus chrome entirely — the list is
-    // sliding like a touch swipe and showing a border / glow jittering across every
-    // card the drag passes over would break that illusion. The chrome reappears the
-    // moment the user releases the key, when requestFocus lands focus on whichever
-    // card is visible at the leading edge.
-    val isFastScrollingState = LocalFastScrollActive.current
-    val isFastScrolling = isFastScrollingState.value
-    val transparentFocusBorder = remember(cardShape) {
-        Border(
-            border = BorderStroke(NuvioTheme.spacing.none, Color.Transparent),
-            shape = cardShape
-        )
-    }
-    val effectiveFocusedBorder = if (isFastScrolling) transparentFocusBorder else focusedBorder
+    // Do not read the fast-scroll flag during composition here. Focus is frozen
+    // on the originating card while the vertical list drags, so hiding chrome on
+    // every visible card only causes a large recomposition burst at drag start
+    // and another one at release. The frozen focused card is the only card with
+    // chrome, and it is usually offscreen by then anyway.
     val cardFocusGlow = when (payload) {
         is ModernPayload.CollectionFolder -> rememberArtworkBackedFocusGlow(
             imageUrl = imageUrl,
@@ -1314,7 +1304,6 @@ private fun ModernCarouselCard(
         )
         else -> Glow.None
     }
-    val effectiveFocusGlow = if (isFastScrolling) Glow.None else cardFocusGlow
     val titleStyle = remember(titleMedium) {
         titleMedium.copy(fontWeight = FontWeight.Medium)
     }
@@ -1377,8 +1366,8 @@ private fun ModernCarouselCard(
                 },
             shape = cardShape,
             containerColor = backgroundCardColor,
-            focusedBorder = effectiveFocusedBorder,
-            focusedGlow = effectiveFocusGlow,
+            focusedBorder = focusedBorder,
+            focusedGlow = cardFocusGlow,
             focusedScale = NuvioFocus.tokens.scale
         ) {
             Box(
