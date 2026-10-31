@@ -24,6 +24,7 @@ import com.nuvio.tv.ui.util.languageCodeToName
 internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiState): List<StreamBadge> {
     val filters = uiState.playerBadgeFilters
     var mediaInfo by remember { mutableStateOf(PlayerMediaInfo()) }
+    var streamFilename by remember { mutableStateOf<String?>(null) }
     val selectedAudio = uiState.audioTracks.firstOrNull { it.isSelected }
     LaunchedEffect(
         filters,
@@ -36,6 +37,7 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
     ) {
         if ((uiState.showControls || uiState.showPauseOverlay) && !uiState.isBuffering) {
             mediaInfo = viewModel.playerMediaInfo()
+            streamFilename = viewModel.playerStreamFilename()
         }
     }
 
@@ -43,6 +45,7 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
     val techBadges = remember(mediaInfo, selectedAudio, latinoFeaturesEnabled) {
         buildPlayerTechBadges(mediaInfo, selectedAudio, showLanguageBadge = latinoFeaturesEnabled)
     }
+
     val importedBadges = if (filters.isEmpty()) {
         emptyList()
     } else {
@@ -51,8 +54,18 @@ internal fun rememberPlayerBadges(viewModel: PlayerViewModel, uiState: PlayerUiS
             mediaInfo,
             listOfNotNull(language, language?.let(::languageCodeToName))
         )
-        remember(text, filters, latinoFeaturesEnabled) {
-            StreamBadgeMatcher.matchedBadges(listOfNotNull(text.takeIf { it.isNotBlank() }), filters)
+        // Keep candidates separate so regex lookaheads in one don't bleed into another.
+        // Collapse whitespace so \n in stream names doesn't break single-line regex patterns.
+        val metaCandidates = listOfNotNull(
+            streamFilename?.trim()?.takeIf { it.isNotBlank() },
+            uiState.currentStreamName?.trim()?.takeIf { it.isNotBlank() }
+        )
+        // Refine decoder text with details the decoder can't report (Atmos in MKV,
+        // DTS-HD MA vs HRA, HDR10+) before group exclusion runs.
+        val playbackCandidate = refinePlaybackText(text, metaCandidates).takeIf { it.isNotBlank() }
+        remember(playbackCandidate, metaCandidates, filters, latinoFeaturesEnabled) {
+            StreamBadgeMatcher.matchedPlayerBadges(playbackCandidate, metaCandidates, filters)
+                .filter { it.imageURL.isNotBlank() }
                 .filter { latinoFeaturesEnabled || !it.isForkLanguageBadge() }
         }
     }
@@ -103,7 +116,7 @@ private fun buildPlayerTechBadges(
     if ("HDR10" in info.hdr) add("HDR10", "tech-hdr", "#0B0B0C", "#FFFFFF", "#FFFFFF")
     if ("HLG" in info.hdr) add("HLG", "tech-hdr", "#0B0B0C", "#FFFFFF", "#6B7280")
 
-    val audioText = listOfNotNull(info.audioCodec, info.audioProfile, audio?.codec)
+    val audioText = (listOfNotNull(info.audioCodec, audio?.codec) + info.audioProfiles)
         .joinToString(" ")
         .uppercase()
     when {

@@ -28,7 +28,9 @@ class DebridStreamFormatter @Inject constructor(
         val matchedBadges = StreamBadgeMatcher.matchedBadges(stream, compiledBadgeFilters)
         val nativeBadges = com.nuvio.tv.core.streams.NativeStreamBadgeDetector.detectBadges(stream)
         val allBadges = (stream.badges + nativeBadges + matchedBadges).distinctBy { it.name }
-        val values = buildValues(stream, allBadges, facts ?: DirectDebridStreamFilter.facts(stream, settings))
+        // Native quality/audio marks enrich the card, but the formatter's
+        // `regexMatched`/`rseMatched` variables stay scoped to imported rules.
+        val values = buildValues(stream, matchedBadges, facts ?: DirectDebridStreamFilter.facts(stream, settings))
         val formattedName = engine.render(settings.streamNameTemplate, values)
             .lineSequence()
             .joinToString(" ") { it.trim() }

@@ -140,7 +140,9 @@ class StreamBadgeRulesTest {
 
         assertEquals("Dolby Vision + Atmos", formatted.name)
         assertEquals("Dolby Vision, Atmos", formatted.description)
-        assertEquals(listOf("Dolby Vision", "Atmos"), formatted.badges.map { it.name })
+        val formattedBadgeNames = formatted.badges.map { it.name }
+        assertTrue(formattedBadgeNames.containsAll(listOf("Dolby Vision", "Atmos")))
+        assertEquals(2, formattedBadgeNames.count { it == "Dolby Vision" || it == "Atmos" })
     }
 
     @Test

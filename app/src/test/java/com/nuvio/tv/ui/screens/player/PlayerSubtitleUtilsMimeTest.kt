@@ -155,4 +155,14 @@ class PlayerSubtitleUtilsMimeTest {
         assertFalse(PlayerSubtitleUtils.matchesLanguageCode("es-419", "es"))
         assertTrue(PlayerSubtitleUtils.matchesLanguageCode("spa", "es"))
     }
+
+    @Test
+    fun normalizeLanguageCode_mapsMontenegrinToSerbianMontenegro() {
+        assertEquals("sr-me", PlayerSubtitleUtils.normalizeLanguageCode("mne"))
+        assertEquals("sr-me", PlayerSubtitleUtils.normalizeLanguageCode("ME"))
+        assertEquals("sr-me", PlayerSubtitleUtils.normalizeLanguageCode("cnr"))
+        assertEquals("sr-me", PlayerSubtitleUtils.normalizeLanguageCode("Montenegrin"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageCode("mne", "sr"))
+        assertTrue(PlayerSubtitleUtils.matchesLanguageCode("mne", "sr-me"))
+    }
 }

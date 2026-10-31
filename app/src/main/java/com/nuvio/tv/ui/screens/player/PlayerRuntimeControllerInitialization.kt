@@ -57,7 +57,6 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.extractor.ts.TsExtractor
-import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.nuvio.tv.R
@@ -77,11 +76,10 @@ import com.nuvio.tv.data.local.Dv7HandlingMode
 import com.nuvio.tv.data.local.FrameRateMatchingMode
 import com.nuvio.tv.data.local.SUBTITLE_LANGUAGE_FORCED
 import com.nuvio.tv.data.local.InternalPlayerEngine
+import com.nuvio.tv.data.local.LibassRenderMode
 import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.repository.PlaybackIssueErrorInput
 import com.nuvio.tv.domain.model.Subtitle
-import io.github.peerless2012.ass.media.kt.buildWithAssSupport
-import io.github.peerless2012.ass.media.type.AssRenderType
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -131,17 +129,15 @@ private suspend fun PlayerRuntimeController.resolveCurrentStreamMimeType(
 
 private fun PlayerRuntimeController.disposeExoPlayerBeforeRebuild() {
     notifyAudioSessionUpdate(false)
-    try {
-        currentMediaSession?.release()
-        currentMediaSession = null
-    } catch (_: Exception) {
-    }
+    releaseMediaSession()
     _exoPlayer?.let { player ->
         runCatching { player.playWhenReady = false }
         runCatching { player.pause() }
         runCatching { player.stop() }
         runCatching { player.clearMediaItems() }
         runCatching { player.clearVideoSurface() }
+        // Release native libass resources (renderer, tracks, fonts) before the player.
+        runCatching { player.releaseAssHandlerCompat() }
         runCatching { player.release() }
     }
     _exoPlayer = null
@@ -207,6 +203,15 @@ internal fun PlayerRuntimeController.initializePlayer(
             // PCM/passthrough policy in place (Media3 1.8.0 BT semantics; do not rebuild).
             registerAudioDelayRouteCallback()
             currentAudioOutputRoute = AudioOutputRouteDetector.detect(context)
+            tunnelingBlockedByUsbAudio = playerSettings.effectiveTunnelingEnabled &&
+                AudioOutputRouteDetector.isUsbMediaOutput(context, currentAudioOutputRoute)
+            if (tunnelingBlockedByUsbAudio) {
+                Log.i(
+                    PlayerRuntimeController.TAG,
+                    "Tunneled playback skipped: media audio goes to USB (route=${currentAudioOutputRoute?.key})"
+                )
+            }
+            val tunnelingActive = playerSettings.effectiveTunnelingEnabled && !tunnelingBlockedByUsbAudio
             if (rememberAudioDelayPerDeviceEnabled) {
                 applyStoredAudioDelayForCurrentRouteIfEnabled()
             }
@@ -254,7 +259,7 @@ internal fun PlayerRuntimeController.initializePlayer(
                     aspectMode = deviceAspectMode,
                     tunneledSurfaceFill = tunneledSurfaceFill,
                     playbackIssueReportsEnabled = playerSettings.playbackIssueReportsEnabled,
-                    tunnelingEnabled = playerSettings.effectiveTunnelingEnabled &&
+                    tunnelingEnabled = tunnelingActive &&
                             effectiveInternalPlayerEngine != InternalPlayerEngine.MVP_PLAYER
                 )
             }
@@ -644,12 +649,13 @@ internal fun PlayerRuntimeController.initializePlayer(
                 libassPipelineOverrideForCurrentStream != null -> libassPipelineOverrideForCurrentStream == true
                 else -> true
             }
-            val requestedLibassRenderType = playerSettings.libassRenderType.toAssRenderType()
-            val libassRenderType = requestedLibassRenderType
+            // The new libass module always uses the SurfaceView overlay pipeline.
+            // The old AssRenderType conversion is no longer needed.
             _uiState.update {
                 it.copy(
                     useLibass = useLibass,
-                    libassRenderType = playerSettings.libassRenderType
+                    libassRenderType = playerSettings.libassRenderType,
+                    libassRenderMode = playerSettings.effectiveLibassRenderMode
                 )
             }
             // ── Track Selector Setup ──
@@ -759,7 +765,7 @@ internal fun PlayerRuntimeController.initializePlayer(
                 }
             }.apply {
                 setParameters(buildUponParameters().setAllowInvalidateSelectionsOnRendererCapabilitiesChange(true))
-                if (playerSettings.effectiveTunnelingEnabled && !safeAudioModeEnabled) {
+                if (tunnelingActive && !safeAudioModeEnabled) {
                     setParameters(buildUponParameters().setTunnelingEnabled(true))
                 } else if (safeAudioModeEnabled) {
                     setParameters(buildUponParameters().setTunnelingEnabled(false).setConstrainAudioChannelCountToDeviceCapabilities(true))
@@ -892,7 +898,7 @@ internal fun PlayerRuntimeController.initializePlayer(
             // ── Renderers Factory (Combining Libass offsets + Audio Gain + Video Fallback) ──
             val renderersFactory = SubtitleOffsetRenderersFactory(
                 context = context,
-                subtitleDelayUsProvider = subtitleDelayUs::get,
+                subtitleDelayUsProvider = { subtitleDelayUs.get() + streamSubtitleDelayUs.get() },
                 audioDelayUsProvider = audioDelayUs::get,
                 shouldNormalizeCuePositionProvider = { true },
                 shouldStripSdhProvider = {
@@ -1002,8 +1008,19 @@ internal fun PlayerRuntimeController.initializePlayer(
             disposeExoPlayerBeforeRebuild()
             delay(PLAYER_REBUILD_SETTLE_DELAY_MS)
             if (!afrPreflightGate.isCurrent(afrPreflightToken)) return@launch
+            // Left the foreground while preparing: build on return instead of claiming a decoder
+            // the foreground app may need. The resume rebuild uses currentStreamUrl.
+            if (isInBackground && url == currentStreamUrl) {
+                pendingBackgroundCrashRecovery = true
+                return@launch
+            }
 
             _exoPlayer = if (useLibass) {
+                // Set libass render scale before building the player - this controls
+                // the rasterization resolution of the atlas pipeline.
+                com.nuvio.tv.libass.media.AssHandler.setRenderScale(
+                    playerSettings.libassRenderScale.scale
+                )
                 val playerDataSourceFactory = PlayerPlaybackNetworking.createDataSourceFactory(context, headers)
                 ExoPlayer.Builder(context)
                     .setBandwidthMeter(bandwidthMeter)
@@ -1014,7 +1031,6 @@ internal fun PlayerRuntimeController.initializePlayer(
                     .setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
                     .buildWithAssSupportCompat(
                         context = context,
-                        renderType = libassRenderType,
                         playerMediaSourceFactory = mediaSourceFactory,
                         dataSourceFactory = playerDataSourceFactory,
                         extractorsFactory = effectiveExtractorsFactory,
@@ -1026,6 +1042,28 @@ internal fun PlayerRuntimeController.initializePlayer(
             _loadControl = loadControl
             activePlayerUsesLibass = useLibass
             libassPipelineSwitchInFlight = false
+
+            if (useLibass) {
+                _exoPlayer?.getAssHandlerCompat()?.let { handler ->
+                    // Apply video effects only when an ASS track has been detected for
+                    // this stream. On first init, no tracks are known yet so effects are
+                    // skipped. When tracks scan finds ASS, the player is rebuilt and this
+                    // code runs again with hasDetectedAssSsaTrackForCurrentStream == true.
+                    // This avoids DVFP overhead on non-ASS content.
+                    val shouldApplyEffects = hasDetectedAssSsaTrackForCurrentStream &&
+                        playerSettings.effectiveLibassRenderMode != LibassRenderMode.OVERLAY
+                    if (shouldApplyEffects) {
+                        val effect = com.nuvio.tv.libass.media.effect.AssVideoEffectAsync(handler)
+                        activeAssVideoEffect = effect
+                        _exoPlayer?.setVideoEffects(listOf(effect))
+                    } else {
+                        activeAssVideoEffect = null
+                    }
+                    // Propagate any saved subtitle delay to libass.
+                    handler.subtitleDelayUs = subtitleDelayUs.get() + streamSubtitleDelayUs.get()
+                    handler.audioDelayUs = audioDelayUs.get()
+                }
+            }
 
             _exoPlayer?.apply {
                 val audioAttributes = AudioAttributes.Builder()
@@ -1042,15 +1080,8 @@ internal fun PlayerRuntimeController.initializePlayer(
                 if (playerSettings.skipSilence) skipSilenceEnabled = true
                 setHandleAudioBecomingNoisy(true)
 
-                try {
-                    currentMediaSession?.release()
-                    if (canAdvertiseSession()) {
-                        currentMediaSession = MediaSession.Builder(context, SafeMediaSessionPlayer(this)).build()
-                    }
-                    updateMediaSessionMetadata()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                runCatching { installExoMediaSession(this) }
+                    .onFailure { it.printStackTrace() }
 
                 applyAudioAmplification(_uiState.value.audioAmplificationDb)
                 applyCenterMixLevel(_uiState.value.centerMixLevelDb)
@@ -1069,7 +1100,7 @@ internal fun PlayerRuntimeController.initializePlayer(
                         "playbackSpeed=${_uiState.value.playbackSpeed} " +
                         "resumePositionMs=$initialResumePosition mime=${currentStreamMimeType ?: "unknown"} " +
                         "bufferEngine=${playerSettings.bufferEngineEnabled} parallel=${mediaSourceFactory.useParallelConnections} " +
-                        "vodCache=${mediaSourceFactory.vodCacheEnabled} tunneling=${playerSettings.effectiveTunnelingEnabled}"
+                        "vodCache=${mediaSourceFactory.vodCacheEnabled} tunneling=$tunnelingActive"
                 )
                 val initialMediaSource = mediaSourceFactory.createMediaSource(
                     context = context,
@@ -1097,7 +1128,7 @@ internal fun PlayerRuntimeController.initializePlayer(
                     phase = "starting_stream",
                     message = context.getString(R.string.player_loading_starting)
                 )
-                val isTunneledPlayback = playerSettings.effectiveTunnelingEnabled
+                val isTunneledPlayback = tunnelingActive
                 // Hold playWhenReady=false through prepare() so audio does not race ahead
                 // while the video decoder is still opening. The first STATE_READY primes the
                 // pipeline (ColdStartPrime); synchronized play() begins in onRenderedFirstFrame().
@@ -1250,6 +1281,7 @@ internal fun PlayerRuntimeController.initializePlayer(
                             )
                             shouldEnforceAutoplayOnFirstReady =
                                 readyTransition.nextState.shouldEnforceAutoplayOnFirstReady
+                            val firstFrameAlreadyRendered = hasRenderedFirstFrame
                             if (readyTransition.nextState.hasRenderedFirstFrame && isTunneledPlayback) {
                                 hasRenderedFirstFrame = true
                             }
@@ -1276,6 +1308,9 @@ internal fun PlayerRuntimeController.initializePlayer(
                                             showPlayerEngineSwitchInfo = false
                                         )
                                     }
+                                    // Read here unless onRenderedFirstFrame() already did:
+                                    // marking the frame rendered keeps it from reading later.
+                                    if (!firstFrameAlreadyRendered) loadExoChapters()
                                 }
                                 is PlayerStartupPlaybackPolicy.ReadyAction.ColdStartPrime -> {
                                     if (action.setPlayWhenReady) {

@@ -63,6 +63,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -344,6 +348,10 @@ fun SeasonTabs(
                             return@onPreviewKeyEvent true
                         }
                         false
+                    }
+                    .semantics {
+                        role = Role.Tab
+                        selected = isSelected
                     },
                 shape = CardDefaults.shape(shape = tabShape),
                 colors = CardDefaults.colors(
@@ -889,7 +897,9 @@ private fun EpisodeCard(
             val bgPainter = remember(cardBgColor) { androidx.compose.ui.graphics.painter.ColorPainter(cardBgColor) }
             AsyncImage(
                 model = thumbnailRequest,
-                contentDescription = episode.title.localizeEpisodeTitle(context),
+                // The card announces the episode title through FocusMarqueeText below, so the
+                // artwork must not repeat it.
+                contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
@@ -1067,9 +1077,9 @@ private fun EpisodeCard(
             if (showCompletedBadge) {
                 WatchedMarker(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.TopEnd)
                         .padding(
-                            start = cardMetrics.statusBadgeInset,
+                            end = cardMetrics.statusBadgeInset,
                             top = cardMetrics.statusBadgeInset
                         ),
                     size = cardMetrics.statusBadgeSize,
@@ -1080,9 +1090,10 @@ private fun EpisodeCard(
             if (isUnavailable) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(if (showCompletedBadge) Alignment.TopStart else Alignment.TopEnd)
                         .padding(
-                            end = cardMetrics.statusBadgeInset,
+                            start = if (showCompletedBadge) cardMetrics.statusBadgeInset else 0.dp,
+                            end = if (showCompletedBadge) 0.dp else cardMetrics.statusBadgeInset,
                             top = cardMetrics.statusBadgeInset
                         )
                         .background(
@@ -1104,9 +1115,9 @@ private fun EpisodeCard(
                 val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(7f, 5f), 0f) }
                 Canvas(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.TopEnd)
                         .padding(
-                            start = cardMetrics.statusBadgeInset,
+                            end = cardMetrics.statusBadgeInset,
                             top = cardMetrics.statusBadgeInset
                         )
                         .size(cardMetrics.statusBadgeSize)
