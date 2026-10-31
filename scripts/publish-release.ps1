@@ -166,7 +166,7 @@ No incluye addons ni contenido. Proyecto no oficial, GPL-3.0.
     foreach ($apk in $apks) {
         $name = Split-Path $apk -Leaf
         Write-Host "Uploading $name..." -ForegroundColor Cyan
-        $uri = "$uploadBase?name=$([uri]::EscapeDataString($name))"
+        $uri = "${uploadBase}?name=$([uri]::EscapeDataString($name))"
         Invoke-RestMethod -Method Post -Uri $uri -Headers $uploadHeaders -InFile $apk -TimeoutSec 1200 | Out-Null
     }
 
