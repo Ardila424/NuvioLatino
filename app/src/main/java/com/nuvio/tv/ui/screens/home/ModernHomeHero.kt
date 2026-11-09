@@ -150,9 +150,8 @@ internal fun ModernHeroMediaLayer(
             // Debounce backdrop image load during continuous D-Pad navigation.
             // If displayedBackdrop is null (initial screen load), display immediately.
             // When moving between cards, debounce by 180ms so fast browsing does not churn decodes.
-            if (displayedBackdrop != null) {
-                delay(180L)
-            }
+            // No extra delay: collectLatest already drops superseded values, and the
+            // rapid-nav freeze in ModernHomeContent covers continuous scrolling.
             displayedBackdrop = raw
             HeroBackdropState.update(raw)
         }
@@ -334,9 +333,7 @@ internal fun HeroTitleBlock(
             .collectLatest { (preview, enriching) ->
                 if (enriching || preview == null) return@collectLatest
                 if (preview == displayedPreview) return@collectLatest
-                if (displayedPreview != null) {
-                    delay(180L)
-                }
+                // No extra delay: collectLatest drops superseded values.
                 displayedPreview = preview
             }
     }

@@ -782,8 +782,13 @@ fun ModernHomeContent(
                     // Also treat as pending when activeCarouselItem is null (row not yet resolved).
                     val heroEnrichmentEnabled = uiState.heroEnrichmentEnabled && !forceSmooth
                     val enrichmentFailed = activeItemId != null && activeItemId in failedEnrichmentIds.value
-                    val effectiveEnrichmentActive = activeCarouselItem == null || enrichmentActive ||
-                        (enrichedHero == null && activeItemId != null && heroEnrichmentEnabled && !enrichmentFailed)
+                    // Show the catalog data at once when it already has a title; the enriched
+                    // data upgrades the hero in place when it arrives. Only wait when there is
+                    // nothing displayable yet.
+                    val catalogHasTitle = activeCarouselItem?.heroPreview?.title?.isNotBlank() == true
+                    val effectiveEnrichmentActive = activeCarouselItem == null ||
+                        (!catalogHasTitle && (enrichmentActive ||
+                            (enrichedHero == null && activeItemId != null && heroEnrichmentEnabled && !enrichmentFailed)))
                     
                     val activeRowKeyVal = activeRowKey.value
                     val activeRow = activeRowKeyVal?.let { rowByKey[it] }

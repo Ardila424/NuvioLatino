@@ -146,7 +146,7 @@ import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
 
-private const val MODERN_HORIZONTAL_FOCUS_DEBOUNCE_MS = 140L
+private const val MODERN_HORIZONTAL_FOCUS_DEBOUNCE_MS = 80L
 private const val POSTER_PREFETCH_DISTANCE = 1
 private const val NESTED_PREFETCH_COUNT = 4
 
