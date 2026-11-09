@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_force_smooth">Modo fluido</string>
+    <string name="layout_force_smooth_sub">Prioriza el desplazamiento reduciendo efectos visuales. Tus ajustes guardados no cambian.</string>
+</resources>

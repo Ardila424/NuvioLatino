@@ -179,6 +179,7 @@ import com.nuvio.tv.ui.components.BrandWordmark
 import com.nuvio.tv.ui.components.LocalCardDepthStyle
 import com.nuvio.tv.ui.components.LocalLandscapePosterMode
 import com.nuvio.tv.ui.components.LocalAlwaysBackdropWithLogo
+import com.nuvio.tv.ui.theme.LocalForceSmoothMode
 import com.nuvio.tv.ui.theme.LocalGlassEffectsEnabled
 import com.nuvio.tv.ui.components.ProfileAvatarCircle
 import com.nuvio.tv.ui.navigation.LocalNavViewModelStoreOwner
@@ -263,8 +264,16 @@ private data class MainUiPrefs(
     val settingsUiStyle: SettingsUiStyle = SettingsUiStyle.CLASSIC,
     val cardDepthStyle: CardDepthStyle = CardDepthStyle(),
     val glassEffectsEnabled: Boolean = true,
+    val forceSmoothEnabled: Boolean = false,
     val landscapePosterMode: Boolean = false,
     val alwaysBackdropWithLogo: Boolean = false
+)
+
+private data class LayoutPerformancePrefs(
+    val landscapePosterMode: Boolean,
+    val alwaysBackdropWithLogo: Boolean,
+    val glassEffectsEnabled: Boolean,
+    val forceSmoothEnabled: Boolean
 )
 
 @AndroidEntryPoint
@@ -570,9 +579,15 @@ open class MainActivity : ComponentActivity() {
                 val landscapePrefsFlow = combine(
                     layoutPreferenceDataStore.modernLandscapePostersEnabled,
                     layoutPreferenceDataStore.alwaysShowLandscapeClearlogo,
-                    layoutPreferenceDataStore.glassEffectsEnabled
-                ) { landscape, backdropWithLogo, glassEffects ->
-                    Triple(landscape, backdropWithLogo, glassEffects)
+                    layoutPreferenceDataStore.glassEffectsEnabled,
+                    layoutPreferenceDataStore.forceSmoothEnabled
+                ) { landscape, backdropWithLogo, glassEffects, forceSmooth ->
+                    LayoutPerformancePrefs(
+                        landscapePosterMode = landscape,
+                        alwaysBackdropWithLogo = backdropWithLogo,
+                        glassEffectsEnabled = glassEffects,
+                        forceSmoothEnabled = forceSmooth
+                    )
                 }
 
                 combine(
@@ -581,7 +596,7 @@ open class MainActivity : ComponentActivity() {
                     extraFeaturesFlow,
                     layoutPreferenceDataStore.cardDepthStyle,
                     landscapePrefsFlow
-                ) { themePrefs, layoutPrefs, extraPrefs, cardDepthStyle, (landscapePosterMode, alwaysBackdropWithLogo, glassEffectsEnabled) ->
+                ) { themePrefs, layoutPrefs, extraPrefs, cardDepthStyle, performancePrefs ->
                     themePrefs.copy(
                         hasChosenLayout = layoutPrefs.hasChosenLayout,
                         sidebarCollapsed = layoutPrefs.sidebarCollapsed,
@@ -594,9 +609,10 @@ open class MainActivity : ComponentActivity() {
                         composeHighlighterEnabled = extraPrefs.composeHighlighterEnabled,
                         settingsUiStyle = extraPrefs.settingsUiStyle,
                         cardDepthStyle = cardDepthStyle,
-                        glassEffectsEnabled = glassEffectsEnabled,
-                        landscapePosterMode = landscapePosterMode,
-                        alwaysBackdropWithLogo = alwaysBackdropWithLogo
+                        glassEffectsEnabled = performancePrefs.glassEffectsEnabled,
+                        forceSmoothEnabled = performancePrefs.forceSmoothEnabled,
+                        landscapePosterMode = performancePrefs.landscapePosterMode,
+                        alwaysBackdropWithLogo = performancePrefs.alwaysBackdropWithLogo
                     )
                 }
             }
@@ -631,7 +647,9 @@ open class MainActivity : ComponentActivity() {
                         fontScale = systemDensity.fontScale.coerceAtMost(MAX_SUPPORTED_FONT_SCALE)
                     )
                 }
-                val highlighterEnabled = BuildConfig.IS_DEBUG_BUILD && mainUiPrefs.composeHighlighterEnabled
+                val highlighterEnabled = BuildConfig.IS_DEBUG_BUILD &&
+                    mainUiPrefs.composeHighlighterEnabled &&
+                    !mainUiPrefs.forceSmoothEnabled
                 com.nuvio.tv.ui.util.RecompositionHighlighterFlag.enabled = highlighterEnabled
                 val profileBgSelection = resolveProfileBackgroundSelection(
                     profile = activeProfile,
@@ -713,10 +731,18 @@ open class MainActivity : ComponentActivity() {
                     LocalBringIntoViewSpec provides bringIntoViewSpec,
                     LocalFastHorizontalNavigationEnabled provides mainUiPrefs.fastHorizontalNavigationEnabled,
                     LocalRecompositionHighlighterEnabled provides highlighterEnabled,
-                    LocalCardDepthStyle provides mainUiPrefs.cardDepthStyle,
-                    LocalGlassEffectsEnabled provides mainUiPrefs.glassEffectsEnabled,
-                    LocalLandscapePosterMode provides mainUiPrefs.landscapePosterMode,
-                    LocalAlwaysBackdropWithLogo provides mainUiPrefs.alwaysBackdropWithLogo,
+                    LocalForceSmoothMode provides mainUiPrefs.forceSmoothEnabled,
+                    LocalCardDepthStyle provides if (mainUiPrefs.forceSmoothEnabled) {
+                        CardDepthStyle()
+                    } else {
+                        mainUiPrefs.cardDepthStyle
+                    },
+                    LocalGlassEffectsEnabled provides
+                        (mainUiPrefs.glassEffectsEnabled && !mainUiPrefs.forceSmoothEnabled),
+                    LocalLandscapePosterMode provides
+                        (mainUiPrefs.landscapePosterMode && !mainUiPrefs.forceSmoothEnabled),
+                    LocalAlwaysBackdropWithLogo provides
+                        (mainUiPrefs.alwaysBackdropWithLogo && !mainUiPrefs.forceSmoothEnabled),
                     LocalMemberAccess provides mainUiPrefs.memberAccess,
                     LocalAmbientIdleController provides ambientIdleController,
                     com.nuvio.tv.core.player.LocalTrailerPlayerPool provides trailerPlayerPool,

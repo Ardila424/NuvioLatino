@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="layout_force_smooth">Smooth mode</string>
+    <string name="layout_force_smooth_sub">Prioritize scrolling performance by reducing visual effects. Your saved design settings are not changed.</string>
+</resources>

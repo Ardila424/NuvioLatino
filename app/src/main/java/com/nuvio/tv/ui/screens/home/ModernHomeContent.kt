@@ -6,6 +6,7 @@
 
 package com.nuvio.tv.ui.screens.home
 
+import com.nuvio.tv.ui.theme.LocalForceSmoothMode
 import com.nuvio.tv.ui.theme.NuvioTheme
 
 import androidx.activity.compose.BackHandler
@@ -152,19 +153,21 @@ fun ModernHomeContent(
     val sidebarExpanded = LocalSidebarExpanded.current
     val isSidebarExpanded = remember(sidebarExpanded) { derivedStateOf { sidebarExpanded } }
     val lifecycleOwner = LocalLifecycleOwner.current
-    val useLandscapePosters = uiState.modernLandscapePostersEnabled
-    val alwaysShowLandscapeClearlogo = uiState.alwaysShowLandscapeClearlogo
-    val fullScreenBackdrop = uiState.modernHeroFullScreenBackdropEnabled
+    val forceSmooth = LocalForceSmoothMode.current
+    val useLandscapePosters = uiState.modernLandscapePostersEnabled && !forceSmooth
+    val alwaysShowLandscapeClearlogo = uiState.alwaysShowLandscapeClearlogo && !forceSmooth
+    val fullScreenBackdrop = uiState.modernHeroFullScreenBackdropEnabled && !forceSmooth
     val trailerPlaybackTarget = uiState.focusedPosterBackdropTrailerPlaybackTarget
+    val effectiveTrailerEnabled = uiState.focusedPosterBackdropTrailerEnabled && !forceSmooth
     val effectiveAutoplayEnabled =
-        uiState.focusedPosterBackdropTrailerEnabled &&
-            (useLandscapePosters || uiState.focusedPosterBackdropExpandEnabled)
+        effectiveTrailerEnabled &&
+            (useLandscapePosters || (uiState.focusedPosterBackdropExpandEnabled && !forceSmooth))
     val landscapeExpandedCardMode =
         useLandscapePosters &&
             effectiveAutoplayEnabled &&
             trailerPlaybackTarget == FocusedPosterTrailerPlaybackTarget.EXPANDED_CARD
     val effectiveExpandEnabled =
-        (uiState.focusedPosterBackdropExpandEnabled && !useLandscapePosters) ||
+        (uiState.focusedPosterBackdropExpandEnabled && !forceSmooth && !useLandscapePosters) ||
             landscapeExpandedCardMode
     val shouldActivateFocusedPosterFlow =
         effectiveExpandEnabled ||
@@ -682,8 +685,8 @@ fun ModernHomeContent(
         }
     }
 
-    val portraitBaseWidth = uiState.posterCardWidthDp.dp
-    val portraitBaseHeight = uiState.posterCardHeightDp.dp
+    val portraitBaseWidth = (if (forceSmooth) 126 else uiState.posterCardWidthDp).dp
+    val portraitBaseHeight = (if (forceSmooth) 189 else uiState.posterCardHeightDp).dp
     val portraitModernPosterScale = 1.08f
     val landscapeModernPosterScale = 1.34f
     val portraitCatalogCardWidth = portraitBaseWidth * 0.84f * portraitModernPosterScale
@@ -710,7 +713,9 @@ fun ModernHomeContent(
     val screenHeight = localConfiguration.screenHeightDp.dp
 
     Box(modifier = Modifier.fillMaxSize().background(NuvioTheme.colors.Background)) {
-            val posterCardCornerRadius = remember(uiState.posterCardCornerRadiusDp) { uiState.posterCardCornerRadiusDp.dp }
+            val posterCardCornerRadius = remember(uiState.posterCardCornerRadiusDp, forceSmooth) {
+                (if (forceSmooth) 12 else uiState.posterCardCornerRadiusDp).dp
+            }
             val rowHorizontalPadding = 52.dp
 
             val activeCarouselItemState = remember(carouselRows, rowByKey) {
@@ -727,7 +732,7 @@ fun ModernHomeContent(
                 }
             }
 
-            val resolvedHeroState = remember(activeCarouselItemState, enrichedPreviews, enrichingItemId, heroItem, uiState.heroEnrichmentEnabled, uiState.homeImdbRatingsVisibility, failedEnrichmentIds) {
+            val resolvedHeroState = remember(activeCarouselItemState, enrichedPreviews, enrichingItemId, heroItem, uiState.heroEnrichmentEnabled, forceSmooth, uiState.homeImdbRatingsVisibility, failedEnrichmentIds) {
                 derivedStateOf {
                     val activeCarouselItem = activeCarouselItemState.value
                     val activeItemId = activeCarouselItem?.metaPreview?.id
@@ -775,7 +780,7 @@ fun ModernHomeContent(
                     // for this item, treat as pending to avoid showing un-enriched addon data.
                     // Exception: if enrichment already failed for this item, show addon data.
                     // Also treat as pending when activeCarouselItem is null (row not yet resolved).
-                    val heroEnrichmentEnabled = uiState.heroEnrichmentEnabled
+                    val heroEnrichmentEnabled = uiState.heroEnrichmentEnabled && !forceSmooth
                     val enrichmentFailed = activeItemId != null && activeItemId in failedEnrichmentIds.value
                     val effectiveEnrichmentActive = activeCarouselItem == null || enrichmentActive ||
                         (enrichedHero == null && activeItemId != null && heroEnrichmentEnabled && !enrichmentFailed)
@@ -1252,10 +1257,10 @@ fun ModernHomeContent(
                 landscapeCatalogCardHeight = landscapeCatalogCardHeight,
                 continueWatchingCardWidth = continueWatchingCardWidth,
                 continueWatchingCardHeight = continueWatchingCardHeight,
-                blurUnwatchedEpisodes = uiState.blurUnwatchedEpisodes,
+                blurUnwatchedEpisodes = uiState.blurUnwatchedEpisodes && !forceSmooth,
                 useEpisodeThumbnails = uiState.useEpisodeThumbnailsInCw,
                 continueWatchingCardStyle = continueWatchingStyle,
-                continueWatchingCornerRadius = uiState.posterCardCornerRadiusDp.dp,
+                continueWatchingCornerRadius = (if (forceSmooth) 12 else uiState.posterCardCornerRadiusDp).dp,
                 pendingRowFocusKey = pendingRowFocusKey,
                 pendingRowFocusIndex = pendingRowFocusIndex,
                 pendingRowFocusNonce = pendingRowFocusNonce,

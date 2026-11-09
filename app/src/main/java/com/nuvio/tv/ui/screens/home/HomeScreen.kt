@@ -58,6 +58,7 @@ import com.nuvio.tv.ui.components.shouldShowHomeStartupLoader
 import com.nuvio.tv.ui.components.NuvioDialog
 import com.nuvio.tv.ui.components.PosterCardDefaults
 import com.nuvio.tv.ui.components.PosterCardStyle
+import com.nuvio.tv.ui.theme.LocalForceSmoothMode
 import androidx.compose.ui.res.stringResource
 import com.nuvio.tv.R
 import com.nuvio.tv.core.tracking.LOCAL_LIBRARY_LIST_KEY
@@ -112,6 +113,22 @@ fun HomeScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    val forceSmooth = LocalForceSmoothMode.current
+    val effectiveHomeLayout = if (forceSmooth) HomeLayout.MODERN else uiState.homeLayout
+
+    LaunchedEffect(forceSmooth, effectiveHomeLayout) {
+        Log.d(
+            "NuvioSmooth",
+            "force=$forceSmooth layout=$effectiveHomeLayout " +
+                "heroFull=${uiState.modernHeroFullScreenBackdropEnabled} " +
+                "expand=${uiState.focusedPosterBackdropExpandEnabled} " +
+                "trailer=${uiState.focusedPosterBackdropTrailerEnabled} " +
+                "landscape=${uiState.modernLandscapePostersEnabled} " +
+                "card=${uiState.posterCardWidthDp}x${uiState.posterCardHeightDp} " +
+                "addons=${uiState.installedAddonsCount} " +
+                "catalogs=${uiState.catalogRows.size} rows=${uiState.homeRows.size}"
+        )
+    }
     val modernPresentation by viewModel.modernHomePresentation.collectAsStateWithLifecycle()
     val initialCwResolved by viewModel.initialCwResolved.collectAsStateWithLifecycle()
     val scrollToTopTrigger by viewModel.scrollToTopTrigger.collectAsStateWithLifecycle()
@@ -122,7 +139,7 @@ fun HomeScreen(
     val hasCollectionContent = uiState.homeRows.any { it is HomeRow.CollectionRow }
     val hasHeroContent = uiState.heroItems.isNotEmpty()
     val modernPresentationReady =
-        uiState.homeLayout != HomeLayout.MODERN ||
+        effectiveHomeLayout != HomeLayout.MODERN ||
             modernPresentation.rows.list.isNotEmpty() ||
             (uiState.heroSectionEnabled && hasHeroContent && !hasCatalogContent && !hasCollectionContent)
     var showHomeContentWithAnimation by rememberSaveable { mutableStateOf(false) }
@@ -133,8 +150,8 @@ fun HomeScreen(
     var catalogLoadingStarted by rememberSaveable { mutableStateOf(false) }
     var posterOptionsTarget by remember { mutableStateOf<HomePosterOptionsTarget?>(null) }
 
-    LaunchedEffect(uiState.homeLayout) {
-        if (uiState.homeLayout != HomeLayout.MODERN) {
+    LaunchedEffect(effectiveHomeLayout) {
+        if (effectiveHomeLayout != HomeLayout.MODERN) {
             HeroBackdropState.update(null)
         }
     }
@@ -210,18 +227,22 @@ fun HomeScreen(
         }
     }
 
-    val posterCardStyle = remember(
-        uiState.posterCardWidthDp,
-        uiState.posterCardCornerRadiusDp
-    ) {
-        val computedHeightDp = (uiState.posterCardWidthDp * 1.5f).roundToInt()
-        PosterCardStyle(
-            width = uiState.posterCardWidthDp.dp,
-            height = computedHeightDp.dp,
-            cornerRadius = uiState.posterCardCornerRadiusDp.dp,
-            focusedBorderWidth = PosterCardDefaults.Style.focusedBorderWidth,
-            focusedScale = PosterCardDefaults.Style.focusedScale
-        )
+    val posterCardStyle = if (forceSmooth) {
+        PosterCardDefaults.Style
+    } else {
+        remember(
+            uiState.posterCardWidthDp,
+            uiState.posterCardCornerRadiusDp
+        ) {
+            val computedHeightDp = (uiState.posterCardWidthDp * 1.5f).roundToInt()
+            PosterCardStyle(
+                width = uiState.posterCardWidthDp.dp,
+                height = computedHeightDp.dp,
+                cornerRadius = uiState.posterCardCornerRadiusDp.dp,
+                focusedBorderWidth = PosterCardDefaults.Style.focusedBorderWidth,
+                focusedScale = PosterCardDefaults.Style.focusedScale
+            )
+        }
     }
 
     val noAddonsError = stringResource(R.string.home_empty_no_sources_title)
@@ -364,7 +385,7 @@ fun HomeScreen(
                                 )
                         }
                     ) {
-                        when (uiState.homeLayout) {
+                        when (effectiveHomeLayout) {
                             HomeLayout.CLASSIC -> ClassicHomeRoute(
                                 viewModel = viewModel,
                                 uiState = uiState,

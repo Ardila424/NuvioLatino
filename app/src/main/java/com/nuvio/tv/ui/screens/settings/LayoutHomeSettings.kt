@@ -74,6 +74,13 @@ internal fun LayoutHomeLayoutSection(
         }
     }
 
+    SettingsToggleRow(
+        title = stringResource(R.string.layout_force_smooth),
+        subtitle = stringResource(R.string.layout_force_smooth_sub),
+        checked = uiState.forceSmoothEnabled,
+        onToggle = { onEvent(LayoutSettingsEvent.SetForceSmoothEnabled(!uiState.forceSmoothEnabled)) }
+    )
+
     if (uiState.selectedLayout == HomeLayout.MODERN) {
         SettingsToggleRow(
             title = stringResource(R.string.layout_fullscreen_hero_backdrop),

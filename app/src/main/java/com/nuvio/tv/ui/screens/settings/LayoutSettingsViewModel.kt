@@ -67,6 +67,7 @@ data class LayoutSettingsUiState(
     val posterCardCornerRadiusDp: Int = 12,
     val cardDepthStyle: CardDepthStyle = CardDepthStyle(),
     val glassEffectsEnabled: Boolean = true,
+    val forceSmoothEnabled: Boolean = false,
     val blurUnwatchedEpisodes: Boolean = false,
     val randomEpisodeEnabled: Boolean = false,
     val episodeOptionsOverlayStyle: EpisodeOptionsOverlayStyle = EpisodeOptionsOverlayStyle.BLUR,
@@ -132,6 +133,7 @@ sealed class LayoutSettingsEvent {
         val enabled: Boolean
     ) : LayoutSettingsEvent()
     data class SetGlassEffectsEnabled(val enabled: Boolean) : LayoutSettingsEvent()
+    data class SetForceSmoothEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetBlurUnwatchedEpisodes(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetRandomEpisodeEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetEpisodeOptionsOverlayStyle(val style: EpisodeOptionsOverlayStyle) : LayoutSettingsEvent()
@@ -325,6 +327,11 @@ class LayoutSettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            layoutPreferenceDataStore.forceSmoothEnabled.distinctUntilChanged().collectLatest { enabled ->
+                updateUiStateIfChanged { it.copy(forceSmoothEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
             layoutPreferenceDataStore.blurUnwatchedEpisodes.distinctUntilChanged().collectLatest { enabled ->
                 updateUiStateIfChanged { it.copy(blurUnwatchedEpisodes = enabled) }
             }
@@ -477,6 +484,7 @@ class LayoutSettingsViewModel @Inject constructor(
             is LayoutSettingsEvent.SetCardDepthSurfaceEnabled ->
                 setCardDepthSurfaceEnabled(event.surface, event.enabled)
             is LayoutSettingsEvent.SetGlassEffectsEnabled -> setGlassEffectsEnabled(event.enabled)
+            is LayoutSettingsEvent.SetForceSmoothEnabled -> setForceSmoothEnabled(event.enabled)
             is LayoutSettingsEvent.SetBlurUnwatchedEpisodes -> setBlurUnwatchedEpisodes(event.enabled)
             is LayoutSettingsEvent.SetRandomEpisodeEnabled -> setRandomEpisodeEnabled(event.enabled)
             is LayoutSettingsEvent.SetEpisodeOptionsOverlayStyle -> setEpisodeOptionsOverlayStyle(event.style)
@@ -810,6 +818,13 @@ class LayoutSettingsViewModel @Inject constructor(
         if (_uiState.value.glassEffectsEnabled == enabled) return
         viewModelScope.launch {
             layoutPreferenceDataStore.setGlassEffectsEnabled(enabled)
+        }
+    }
+
+    private fun setForceSmoothEnabled(enabled: Boolean) {
+        if (_uiState.value.forceSmoothEnabled == enabled) return
+        viewModelScope.launch {
+            layoutPreferenceDataStore.setForceSmoothEnabled(enabled)
         }
     }
 
