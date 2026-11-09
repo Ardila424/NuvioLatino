@@ -343,19 +343,9 @@ internal fun HeroTitleBlock(
         else if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
-    // Fade the text block in when the title changes, instead of popping in.
-    val textAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(displayPreview.title, displayPreview.logo) {
-        if (displayPreview.textPending) {
-            textAlpha.snapTo(0f)
-        } else {
-            textAlpha.snapTo(0f)
-            textAlpha.animateTo(1f, tween(durationMillis = 220))
-        }
-    }
-
+    // No fade on the text: dimming it on every title change read as a flick.
     Box(
-        modifier = modifier.graphicsLayer { alpha = textAlpha.value },
+        modifier = modifier,
         contentAlignment = Alignment.BottomStart
     ) {
         HeroTitleContent(
