@@ -609,7 +609,9 @@ fun ModernHomeContent(
         LaunchedEffect(activeHeroItemKey, verticalRowListState) {
             if (verticalRowListState.isScrollInProgress) return@LaunchedEffect
             val targetHeroKey = activeHeroItemKey ?: return@LaunchedEffect
-            val settleDelayMs = heroFocusSettleDelayMs.longValue
+            // Moving between catalogs: a short settle, so the hero follows the row without the
+            // longer horizontal settle delay (rapid D-pad scrolling is still protected by the freeze).
+            val settleDelayMs = MODERN_VERTICAL_HERO_SETTLE_MS
             delay(settleDelayMs)
             if (verticalRowListState.isScrollInProgress) return@LaunchedEffect
             if (System.currentTimeMillis() - lastHeroNavigationAtMs.longValue < settleDelayMs) return@LaunchedEffect

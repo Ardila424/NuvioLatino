@@ -29,6 +29,7 @@ internal const val MODERN_HERO_MEDIA_WIDTH_FRACTION = 0.72f
 internal const val MODERN_TRAILER_OVERSCAN_ZOOM = 1.35f
 internal const val MODERN_HERO_FOCUS_DEBOUNCE_MS = 300L
 internal const val MODERN_HERO_RAPID_NAV_SETTLE_MS = 350L
+internal const val MODERN_VERTICAL_HERO_SETTLE_MS = 120L
 internal val MODERN_ROW_HEADER_FOCUS_INSET = 40.dp
 internal const val MODERN_CONTINUE_WATCHING_ROW_KEY = "continue_watching"
 internal const val MODERN_UPCOMING_ROW_KEY = "upcoming_section"
