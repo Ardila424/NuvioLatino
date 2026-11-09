@@ -53,6 +53,13 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import kotlinx.coroutines.withTimeoutOrNull
@@ -354,19 +361,32 @@ internal fun HeroTitleBlock(
     val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
-    // No fade on the text: dimming it on every title change read as a flick.
+    // The text block moves with the same 260 ms timing as the backdrop crossfade. It is keyed on the
+    // title, so rating or genre updates for the same movie change in place without animating again.
     Box(
         modifier = modifier,
         contentAlignment = Alignment.BottomStart
     ) {
+        AnimatedContent(
+            targetState = displayPreview,
+            contentKey = { it.title },
+            transitionSpec = {
+                (slideInVertically(tween(260, easing = FastOutSlowInEasing)) { fullHeight -> fullHeight / 20 } +
+                    fadeIn(tween(260, easing = FastOutSlowInEasing), initialAlpha = 0.6f))
+                    .togetherWith(fadeOut(tween(260)))
+                    .using(SizeTransform(clip = false))
+            },
+            label = "heroTitleTransition"
+        ) { preview ->
         HeroTitleContent(
-            previewProvider = { displayPreview },
+            previewProvider = { preview },
             portraitMode = portraitMode,
             showImdbRatings = showImdbRatings,
             mdbListShowOnHero = mdbListShowOnHero,
             mdbListRatingOrder = mdbListRatingOrder,
             trailerPlaying = trailerPlaying
         )
+        }
     }
 }
 

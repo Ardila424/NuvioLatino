@@ -596,7 +596,7 @@ fun ModernHomeContent(
             val currentRowKey = activeRowKey.value
             val timeSinceLast = System.currentTimeMillis() - lastHeroNavigationAtMs.longValue
             // Only activate rapid nav if we're in the same row as last navigation
-            if (timeSinceLast in 1..300 && lastRapidNavRowKey.value == currentRowKey) {
+            if (timeSinceLast in 1..MODERN_HERO_RAPID_NAV_SETTLE_MS && lastRapidNavRowKey.value == currentRowKey) {
                 isRapidHorizontalNav.value = true
             }
             lastRapidNavRowKey.value = currentRowKey
