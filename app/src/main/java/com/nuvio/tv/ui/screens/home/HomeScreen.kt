@@ -116,7 +116,13 @@ fun HomeScreen(
     val forceSmooth = LocalForceSmoothMode.current
     val effectiveHomeLayout = if (forceSmooth) HomeLayout.MODERN else uiState.homeLayout
 
-    LaunchedEffect(forceSmooth, effectiveHomeLayout) {
+    LaunchedEffect(
+        forceSmooth,
+        effectiveHomeLayout,
+        uiState.installedAddonsCount,
+        uiState.catalogRows.size,
+        uiState.homeRows.size
+    ) {
         Log.d(
             "NuvioSmooth",
             "force=$forceSmooth layout=$effectiveHomeLayout " +
