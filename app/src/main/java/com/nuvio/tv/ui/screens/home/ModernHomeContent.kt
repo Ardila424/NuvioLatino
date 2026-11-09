@@ -607,13 +607,10 @@ fun ModernHomeContent(
         val latestHeroRow by rememberUpdatedState(activeRow)
         val latestHeroIndex by rememberUpdatedState(clampedActiveItemIndex)
         LaunchedEffect(activeHeroItemKey, verticalRowListState) {
-            if (verticalRowListState.isScrollInProgress) return@LaunchedEffect
             val targetHeroKey = activeHeroItemKey ?: return@LaunchedEffect
-            // Moving between catalogs: a short settle, so the hero follows the row without the
-            // longer horizontal settle delay (rapid D-pad scrolling is still protected by the freeze).
+            // Short settle, so the hero follows focus during a vertical catalog scroll too.
             val settleDelayMs = MODERN_VERTICAL_HERO_SETTLE_MS
             delay(settleDelayMs)
-            if (verticalRowListState.isScrollInProgress) return@LaunchedEffect
             if (System.currentTimeMillis() - lastHeroNavigationAtMs.longValue < settleDelayMs) return@LaunchedEffect
             val row = latestHeroRow ?: return@LaunchedEffect
             val latestKey = row.items.getOrNull(latestHeroIndex)?.key ?: row.items.firstOrNull()?.key
@@ -995,8 +992,8 @@ fun ModernHomeContent(
                     val stableHasPreview = stable?.preview?.title?.isNotBlank() == true
                     val liveHasPreview = currentLive.preview?.title?.isNotBlank() == true
                     when {
-                        isScrolling && stableHasPreview -> stable
-                        isScrolling && !stableHasPreview && liveHasPreview -> currentLive
+                        // No vertical-scroll freeze: the hero follows focus while the catalog moves.
+                        // The settle delay below keeps it from churning on fast presses.
                         isRapidNav -> currentLive.copy(preview = null, enrichmentActive = false)
                         else -> currentLive
                     }
@@ -1054,7 +1051,6 @@ fun ModernHomeContent(
                     when {
                         // During vertical scroll: freeze stable to avoid flashing
                         // transient addon data before enrichment completes
-                        isScrolling && stableHasPreview -> stable!!
                         // During rapid horizontal nav: freeze to avoid backdrop flashing
                         isRapidNav && stable != null -> stable
                         // Normal: show live state
