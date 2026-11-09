@@ -1015,7 +1015,11 @@ fun ModernHomeContent(
                             }
                         }
                         val displayedBackdrop = HeroBackdropState.lastDisplayedUrl
-                        val corrected = if (!displayedBackdrop.isNullOrBlank() &&
+                        // Keep the previously drawn backdrop only while the same item stays on screen.
+                        // When the title changes, take the new backdrop with the new text, so the
+                        // picture and the text switch together instead of the text running ahead.
+                        val sameItemOnScreen = existingStable?.preview == incomingPreview
+                        val corrected = if (sameItemOnScreen && !displayedBackdrop.isNullOrBlank() &&
                             displayedBackdrop != currentStable.heroBackdrop
                         ) {
                             currentStable.copy(heroBackdrop = displayedBackdrop)
