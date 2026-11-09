@@ -741,7 +741,12 @@ fun ModernHomeContent(
                     // Localized hero: only the Spanish TMDB text is shown. Until it exists the text
                     // is blank (textPending), never the catalog or the previous item's text.
                     // The images and ratings still come from the catalog at once.
-                    if (uiState.heroLocalizedText && activeCarouselItem != null) {
+                    // Continue watching and upcoming items take their text from watch progress, not
+                    // from TMDB, so they keep their own data.
+                    val localizedRowKey = activeRowKey.value
+                    val isProgressRow = localizedRowKey == MODERN_CONTINUE_WATCHING_ROW_KEY ||
+                        localizedRowKey == MODERN_UPCOMING_ROW_KEY
+                    if (uiState.heroLocalizedText && !isProgressRow && activeCarouselItem != null) {
                         val base = activeCarouselItem.heroPreview
                         val text = activeItemId?.let { heroText.value[it] }
                         // TMDB failed for this item and nothing is stored: show the catalog text
