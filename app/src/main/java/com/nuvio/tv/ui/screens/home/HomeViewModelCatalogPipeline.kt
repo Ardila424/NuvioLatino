@@ -112,11 +112,18 @@ internal fun HomeViewModel.observeTmdbSettingsPipeline() {
                 val tmdbEnabledForLayout = settings.enabled &&
                     (_uiState.value.homeLayout != HomeLayout.MODERN || settings.modernHomeEnabled)
                 val enrichEnabled = tmdbEnabledForLayout || externalMetaPrefetchEnabled
-                _uiState.update { it.copy(heroEnrichmentEnabled = enrichEnabled) }
+                // Localized hero: TMDB text in a non-English language. The hero then never shows
+                // catalog or addon text, only the Spanish text stored in _heroText.
+                val localizedHero = tmdbEnabledForLayout && settings.useBasicInfo &&
+                    !settings.language.startsWith("en", ignoreCase = true)
+                _uiState.update {
+                    it.copy(heroEnrichmentEnabled = enrichEnabled, heroLocalizedText = localizedHero)
+                }
                 if (languageChanged) {
                     // Allow re-enrichment with the updated TMDB metadata selection on next focus.
                     prefetchedTmdbIds.clear()
                     prefetchedExternalMetaIds.clear()
+                    _heroText.value = emptyMap()
                     _enrichedPreviews.value = emptyMap()
                     _lastEnrichedPreview.value = null
                     clearEnrichmentFailures()

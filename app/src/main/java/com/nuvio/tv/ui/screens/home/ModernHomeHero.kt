@@ -338,7 +338,9 @@ internal fun HeroTitleBlock(
             }
     }
 
-    val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
+    // A textPending preview is shown as is (blank text), so the previous item's text never lingers.
+    val displayPreview = if (currentPreview?.textPending == true) currentPreview
+        else if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
     Box(

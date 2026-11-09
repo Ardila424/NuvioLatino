@@ -918,6 +918,19 @@ private fun HomeViewModel.updateCatalogItemWithTmdb(itemId: String, enrichment: 
         return merged
     }
 
+    // Spanish-only hero text: taken from TMDB alone. A null field stays null (no fallback to the
+    // catalog or addon text, which is English for most addons).
+    if (currentTmdbSettings.useBasicInfo) {
+        addHeroText(
+            itemId,
+            HeroLocalizedText(
+                title = enrichment.localizedTitle,
+                description = enrichment.description,
+                logo = enrichment.logo
+            )
+        )
+    }
+
     updateIndexedCatalogItem(itemId, ::mergeItem)
     clearEnrichmentFailure(itemId)
 

@@ -40,6 +40,14 @@ internal val MODERN_LANDSCAPE_LOGO_GRADIENT = Brush.verticalGradient(
     )
 )
 
+/** Spanish-only hero text from a successful TMDB result. Null fields mean "not available in Spanish". */
+@Immutable
+data class HeroLocalizedText(
+    val title: String?,
+    val description: String?,
+    val logo: String?
+)
+
 @Immutable
 data class HeroPreview(
     val title: String,
@@ -66,7 +74,10 @@ data class HeroPreview(
      *  even after navigation away and back. */
     val frozenBackdropUrl: String? = null,
     /** Same idea for the logo URL. */
-    val frozenLogoUrl: String? = null
+    val frozenLogoUrl: String? = null,
+    /** True while the Spanish title/synopsis for this item is still loading. The hero shows
+     *  blank text for it instead of the previous item's or the catalog's text. */
+    val textPending: Boolean = false
 )
 
 @Immutable

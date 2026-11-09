@@ -125,6 +125,7 @@ fun ModernHomeContent(
     // parameters recomposed all of the home content each time instead of only the hero state.
     enrichingItemId: State<String?>,
     enrichedPreviews: State<Map<String, MetaPreview>>,
+    heroText: State<Map<String, HeroLocalizedText>> = androidx.compose.runtime.mutableStateOf(emptyMap()),
     failedEnrichmentIds: State<Set<String>>,
     trailerPreviewUrls: Map<String, String> = emptyMap(),
     trailerPreviewAudioUrls: Map<String, String> = emptyMap(),
@@ -732,10 +733,31 @@ fun ModernHomeContent(
                 }
             }
 
-            val resolvedHeroState = remember(activeCarouselItemState, enrichedPreviews, enrichingItemId, heroItem, uiState.heroEnrichmentEnabled, forceSmooth, uiState.homeImdbRatingsVisibility, failedEnrichmentIds) {
+            val resolvedHeroState = remember(activeCarouselItemState, enrichedPreviews, enrichingItemId, heroItem, uiState.heroEnrichmentEnabled, uiState.heroLocalizedText, heroText, forceSmooth, uiState.homeImdbRatingsVisibility, failedEnrichmentIds) {
                 derivedStateOf {
                     val activeCarouselItem = activeCarouselItemState.value
                     val activeItemId = activeCarouselItem?.metaPreview?.id
+
+                    // Localized hero: only the Spanish TMDB text is shown. Until it exists the text
+                    // is blank (textPending), never the catalog or the previous item's text.
+                    // The images and ratings still come from the catalog at once.
+                    if (uiState.heroLocalizedText && activeCarouselItem != null) {
+                        val base = activeCarouselItem.heroPreview
+                        val text = activeItemId?.let { heroText.value[it] }
+                        val title = text?.title?.takeIf { it.isNotBlank() }
+                        val localizedPreview = base.copy(
+                            title = title.orEmpty(),
+                            description = if (title != null) text?.description else null,
+                            logo = if (title != null) text?.logo else null,
+                            textPending = title == null
+                        )
+                        val localizedBackdrop = firstNonBlank(
+                            base.backdrop,
+                            base.imageUrl,
+                            base.poster
+                        )
+                        return@derivedStateOf Triple(localizedBackdrop, localizedPreview, false)
+                    }
                     val enrichingId = enrichingItemId.value
                     val enrichmentActive = enrichingId != null && enrichingId == activeItemId
 
@@ -965,7 +987,9 @@ fun ModernHomeContent(
                     if (stableHeroSceneStateRef.value != currentStable) {
                         // Skip updates where preview is blank (transient empty state from row transitions).
                         val incomingPreview = currentStable.preview
-                        if (incomingPreview != null && incomingPreview.title.isBlank()) {
+                        // A textPending preview is intentionally blank: it must replace the previous
+                        // item's text instead of being skipped.
+                        if (incomingPreview != null && incomingPreview.title.isBlank() && !incomingPreview.textPending) {
                             return@collect
                         }
                         // If incoming has null preview (enrichment pending) and we're scrolling,

@@ -676,6 +676,7 @@ private fun ModernHomeRoute(
     val enrichingItemId = viewModel.enrichingItemId.collectAsStateWithLifecycle()
     val enrichedPreviews = viewModel.enrichedPreviews.collectAsStateWithLifecycle()
     val failedEnrichmentIds = viewModel.failedEnrichmentIds.collectAsStateWithLifecycle()
+    val heroText = viewModel.heroText.collectAsStateWithLifecycle()
     val requestTrailerPreview = remember(viewModel) {
         { itemId: String, title: String, releaseInfo: String?, apiType: String ->
             viewModel.requestTrailerPreview(itemId, title, releaseInfo, apiType)
@@ -710,6 +711,7 @@ private fun ModernHomeRoute(
         scrollToTopTrigger = scrollToTopTrigger,
         enrichingItemId = enrichingItemId,
         enrichedPreviews = enrichedPreviews,
+        heroText = heroText,
         failedEnrichmentIds = failedEnrichmentIds,
         trailerPreviewUrls = viewModel.trailerPreviewUrls,
         trailerPreviewAudioUrls = viewModel.trailerPreviewAudioUrls,

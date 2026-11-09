@@ -200,6 +200,22 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Spanish-only text for the modern hero, filled only from a successful TMDB result in the
+     * configured language. Catalog and addon text never goes here, so the hero cannot show
+     * English (or any other language) when localization is on.
+     */
+    internal val _heroText = MutableStateFlow<Map<String, HeroLocalizedText>>(emptyMap())
+    val heroText: StateFlow<Map<String, HeroLocalizedText>> = _heroText.asStateFlow()
+
+    internal fun addHeroText(id: String, text: HeroLocalizedText) {
+        _heroText.update { current ->
+            val updated = current + (id to text)
+            if (updated.size <= MAX_ENRICHMENT_CACHE_SIZE) updated
+            else LinkedHashMap(updated).apply { while (size > MAX_ENRICHMENT_CACHE_SIZE) remove(keys.first()) }
+        }
+    }
+
     /** Items for which enrichment was attempted but produced no enriched data. */
     internal val _failedEnrichmentIds = MutableStateFlow<Set<String>>(emptySet())
     val failedEnrichmentIds: StateFlow<Set<String>> = _failedEnrichmentIds.asStateFlow()

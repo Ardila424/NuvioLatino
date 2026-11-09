@@ -69,6 +69,8 @@ data class HomeUiState(
     val continueWatchingEnabled: Boolean = true,
     val continueWatchingCardStyle: ContinueWatchingCardStyle = ContinueWatchingCardStyle.CARD,
     val heroEnrichmentEnabled: Boolean = false,
+    /** True when the hero must show only TMDB text in the configured (non-English) language. */
+    val heroLocalizedText: Boolean = false,
     val startupAuthNotice: StartupAuthNotice? = null,
     val homeRows: List<HomeRow> = emptyList(),
     val customPosterUrlPattern: String = "",
