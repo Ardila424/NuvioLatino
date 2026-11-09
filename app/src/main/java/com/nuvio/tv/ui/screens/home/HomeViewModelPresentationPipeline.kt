@@ -904,7 +904,10 @@ private fun HomeViewModel.updateCatalogItemWithTmdb(itemId: String, enrichment: 
         }
         if (currentTmdbSettings.useArtwork) {
             merged = merged.copy(
-                background = enrichment.backdrop ?: merged.background,
+                // Modern home keeps the catalog backdrop, so the picture changes once with the text
+                // instead of a second time after the TMDB merge.
+                background = if (isModernLayout) merged.background ?: enrichment.backdrop
+                    else enrichment.backdrop ?: merged.background,
                 logo = enrichment.logo ?: merged.logo
             )
         }

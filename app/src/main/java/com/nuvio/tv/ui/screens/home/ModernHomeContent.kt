@@ -770,7 +770,10 @@ fun ModernHomeContent(
                             base.imageUrl,
                             base.poster
                         )
-                        return@derivedStateOf Triple(localizedBackdrop, localizedPreview, false)
+                        // While the Spanish text is pending, report enrichment as active. The hero then
+                        // keeps the whole previous scene (text, rating and backdrop) and switches all
+                        // of it together once the Spanish text arrives. No blank step.
+                        return@derivedStateOf Triple(localizedBackdrop, localizedPreview, title == null)
                     }
                     val enrichingId = enrichingItemId.value
                     val enrichmentActive = enrichingId != null && enrichingId == activeItemId
@@ -999,6 +1002,9 @@ fun ModernHomeContent(
                     }
                 }.collect { currentStable ->
                     if (stableHeroSceneStateRef.value != currentStable) {
+                        // Hold the previous scene while the Spanish text is pending: the backdrop must
+                        // not change ahead of its text.
+                        if (currentStable.enrichmentActive) return@collect
                         // Skip updates where preview is blank (transient empty state from row transitions).
                         val incomingPreview = currentStable.preview
                         // A textPending preview is intentionally blank: it must replace the previous

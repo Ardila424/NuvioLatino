@@ -53,7 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import coil3.imageLoader
 import coil3.request.ImageRequest
+import kotlinx.coroutines.withTimeoutOrNull
 import coil3.request.crossfade
 import com.nuvio.tv.ui.util.LocalRecompositionHighlighterEnabled
 import com.nuvio.tv.ui.util.contentTextDirection
@@ -150,8 +152,18 @@ internal fun ModernHeroMediaLayer(
             // Debounce backdrop image load during continuous D-Pad navigation.
             // If displayedBackdrop is null (initial screen load), display immediately.
             // When moving between cards, debounce by 180ms so fast browsing does not churn decodes.
-            // No extra delay: collectLatest already drops superseded values, and the
-            // rapid-nav freeze in ModernHomeContent covers continuous scrolling.
+            // Load the new backdrop into memory first (same size as the image below), so the
+            // crossfade starts from the old picture and never from a black frame.
+            withTimeoutOrNull(400L) {
+                localContext.imageLoader.execute(
+                    ImageRequest.Builder(localContext)
+                        .data(raw)
+                        .size(width = requestWidthPx, height = requestHeightPx)
+                        .precision(coil3.size.Precision.INEXACT)
+                        .allowHardware(true)
+                        .build()
+                )
+            }
             displayedBackdrop = raw
             HeroBackdropState.update(raw)
         }
@@ -338,9 +350,8 @@ internal fun HeroTitleBlock(
             }
     }
 
-    // A textPending preview is shown as is (blank text), so the previous item's text never lingers.
-    val displayPreview = if (currentPreview?.textPending == true) currentPreview
-        else if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
+    // While enriching (Spanish text pending) keep the previous scene; no blank step.
+    val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
     // No fade on the text: dimming it on every title change read as a flick.
