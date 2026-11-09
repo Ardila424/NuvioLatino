@@ -744,6 +744,16 @@ fun ModernHomeContent(
                     if (uiState.heroLocalizedText && activeCarouselItem != null) {
                         val base = activeCarouselItem.heroPreview
                         val text = activeItemId?.let { heroText.value[it] }
+                        // TMDB failed for this item and nothing is stored: show the catalog text
+                        // as before, rather than leaving the hero blank forever.
+                        val enrichmentGaveUp = activeItemId != null && activeItemId in failedEnrichmentIds.value
+                        if (text == null && enrichmentGaveUp) {
+                            return@derivedStateOf Triple(
+                                firstNonBlank(base.backdrop, base.imageUrl, base.poster),
+                                base,
+                                false
+                            )
+                        }
                         val title = text?.title?.takeIf { it.isNotBlank() }
                         val localizedPreview = base.copy(
                             title = title.orEmpty(),

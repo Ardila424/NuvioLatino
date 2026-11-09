@@ -918,14 +918,16 @@ private fun HomeViewModel.updateCatalogItemWithTmdb(itemId: String, enrichment: 
         return merged
     }
 
-    // Spanish-only hero text: taken from TMDB alone. A null field stays null (no fallback to the
-    // catalog or addon text, which is English for most addons).
+    // Hero text: TMDB's Spanish text first. When TMDB has no Spanish title or synopsis, fall back to
+    // the catalog/addon text, as the hero did before localization (many addons already return
+    // Spanish). A null field only stays null when the catalog has nothing either.
     if (currentTmdbSettings.useBasicInfo) {
+        val catalogItem = findCatalogItemById(itemId)
         addHeroText(
             itemId,
             HeroLocalizedText(
-                title = enrichment.localizedTitle,
-                description = enrichment.description,
+                title = enrichment.localizedTitle ?: catalogItem?.name,
+                description = enrichment.description ?: catalogItem?.description,
                 logo = enrichment.logo
             )
         )
