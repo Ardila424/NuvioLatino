@@ -561,11 +561,23 @@ internal fun HomeViewModel.loadContinueWatchingPipeline() {
                         )
                     )
                 }
+                // Keep the card of a series whose episode was just finished until its fresh
+                // next-up replaces it. Dropping it here and adding it back below moved focus
+                // to the neighbouring card.
+                val awaitingNextUpItems = continueWatchingCardsAwaitingNextUp(
+                    shownItems = _uiState.value.continueWatchingItems,
+                    placedContentIds = inProgressOnly.mapTo(mutableSetOf()) { it.progress.contentId } +
+                        cachedNextUpItems.map { it.info.contentId },
+                    seededContentIds = activeSeedContentIds,
+                    dismissedNextUpKeys = dismissedNextUp
+                )
                 if (inProgressOnly.isNotEmpty() || cachedNextUpItems.isNotEmpty()) {
                     val initialItems = applyContinueWatchingEnrichmentOverlay(
                         mergeContinueWatchingItems(
-                            inProgressItems = inProgressOnly,
-                            nextUpItems = cachedNextUpItems,
+                            inProgressItems = inProgressOnly +
+                                awaitingNextUpItems.filterIsInstance<ContinueWatchingItem.InProgress>(),
+                            nextUpItems = cachedNextUpItems +
+                                awaitingNextUpItems.filterIsInstance<ContinueWatchingItem.NextUp>(),
                             mode = continueWatchingSortMode
                         )
                     )
@@ -652,10 +664,15 @@ internal fun HomeViewModel.loadContinueWatchingPipeline() {
                                 val retainedCached = cachedNextUpItems.filter {
                                     it.info.contentId !in freshIds
                                 }
+                                val retainedAwaiting = awaitingNextUpItems.filter {
+                                    it.contentId() !in freshIds
+                                }
                                 val partialItems = applyContinueWatchingEnrichmentOverlay(
                                     mergeContinueWatchingItems(
-                                        inProgressItems = inProgressOnly,
-                                        nextUpItems = cachedPartialNextUp + retainedCached,
+                                        inProgressItems = inProgressOnly +
+                                            retainedAwaiting.filterIsInstance<ContinueWatchingItem.InProgress>(),
+                                        nextUpItems = cachedPartialNextUp + retainedCached +
+                                            retainedAwaiting.filterIsInstance<ContinueWatchingItem.NextUp>(),
                                         mode = continueWatchingSortMode
                                     )
                                 )
@@ -1224,16 +1241,9 @@ private fun deduplicateInProgress(items: List<WatchProgress>): List<WatchProgres
     return (nonSeries + latestPerShow).sortedByDescending { it.lastWatched }
 }
 
-private fun shouldTreatAsInProgressForContinueWatching(progress: WatchProgress): Boolean {
-    if (progress.isCompleted()) return false
-    if (progress.isInProgress() && progress.progressPercentage >= 0.02f) return true
-
-    val hasStartedPlayback = progress.position > 0L ||
-        progress.progressPercent?.let { it > 0f } == true
-    return hasStartedPlayback &&
-        progress.source != WatchProgress.SOURCE_TRAKT_HISTORY &&
-        progress.source != WatchProgress.SOURCE_TRAKT_SHOW_PROGRESS
-}
+// Same rule the player uses to resume, so CW never shows items that would restart from 0
+private fun shouldTreatAsInProgressForContinueWatching(progress: WatchProgress): Boolean =
+    progress.isInProgress()
 
 internal fun HomeViewModel.shouldUseAsCompletedSeed(progress: WatchProgress): Boolean {
     if (isMalformedNextUpSeedContentId(progress.contentId)) return false
