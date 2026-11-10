@@ -196,7 +196,7 @@ internal fun ModernHeroMediaLayer(
     Box(modifier = modifier) {
         androidx.compose.animation.Crossfade(
             targetState = imageModel,
-            animationSpec = tween(durationMillis = 260),
+            animationSpec = tween(durationMillis = MODERN_HERO_TRANSITION_MS),
             label = "heroBackdropCrossfade"
         ) { model ->
             AsyncImage(
@@ -363,7 +363,7 @@ internal fun HeroTitleBlock(
     val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
-    // The text block moves with the same 260 ms timing as the backdrop crossfade. It is keyed on the
+    // The text block moves with the same timing (MODERN_HERO_TRANSITION_MS) as the backdrop crossfade. It is keyed on the
     // title, so rating or genre updates for the same movie change in place without animating again.
     Box(
         modifier = modifier,
@@ -373,9 +373,9 @@ internal fun HeroTitleBlock(
             targetState = displayPreview,
             contentKey = { it.title },
             transitionSpec = {
-                (slideInVertically(tween(260, easing = FastOutSlowInEasing)) { fullHeight -> fullHeight / 20 } +
-                    fadeIn(tween(260, easing = FastOutSlowInEasing), initialAlpha = 0.6f))
-                    .togetherWith(fadeOut(tween(260)))
+                (slideInVertically(tween(MODERN_HERO_TRANSITION_MS, easing = FastOutSlowInEasing)) { fullHeight -> fullHeight / 20 } +
+                    fadeIn(tween(MODERN_HERO_TRANSITION_MS, easing = FastOutSlowInEasing), initialAlpha = 0.6f))
+                    .togetherWith(fadeOut(tween(MODERN_HERO_TRANSITION_MS)))
                     .using(SizeTransform(clip = false))
             },
             label = "heroTitleTransition"

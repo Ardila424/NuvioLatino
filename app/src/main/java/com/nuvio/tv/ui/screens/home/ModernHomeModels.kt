@@ -30,6 +30,8 @@ internal const val MODERN_TRAILER_OVERSCAN_ZOOM = 1.35f
 internal const val MODERN_HERO_FOCUS_DEBOUNCE_MS = 140L
 internal const val MODERN_HERO_RAPID_NAV_SETTLE_MS = 160L
 internal const val MODERN_VERTICAL_HERO_SETTLE_MS = 120L
+/** Backdrop crossfade and title block transition. Shared so the text and picture stay in step. */
+internal const val MODERN_HERO_TRANSITION_MS = 160
 internal val MODERN_ROW_HEADER_FOCUS_INSET = 40.dp
 internal const val MODERN_CONTINUE_WATCHING_ROW_KEY = "continue_watching"
 internal const val MODERN_UPCOMING_ROW_KEY = "upcoming_section"
