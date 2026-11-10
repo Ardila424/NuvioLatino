@@ -153,6 +153,7 @@ import com.nuvio.tv.ui.screens.party.ConfirmDialog
 import com.nuvio.tv.ui.screens.party.PartyPanel
 import com.nuvio.tv.ui.screens.party.PartyStatusPill
 import com.nuvio.tv.core.player.PlayerWindowBackdrop
+import com.nuvio.tv.ui.util.keepLtr
 import com.nuvio.tv.ui.util.localizeEpisodeTitle
 import com.nuvio.tv.data.local.InternalPlayerEngine
 import com.nuvio.tv.data.local.LibassRenderMode
@@ -1139,11 +1140,11 @@ fun PlayerScreen(
                 val subtitleMeasurePaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
                 LaunchedEffect(subtitleWidthKey, prescannedSubtitleTexts) {
                     val metrics = subtitleTextMetrics ?: return@LaunchedEffect
-                    if (prescannedSubtitleTexts.isEmpty()) return@LaunchedEffect
+                    val texts = prescannedSubtitleTexts
                     val widest = withContext(Dispatchers.Default) {
                         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-                        prescannedSubtitleTexts.maxOf { measureSubtitleBlockPx(paint, it, metrics) }
-                    }
+                        texts.maxOfOrNull { measureSubtitleBlockPx(paint, it, metrics) }
+                    } ?: return@LaunchedEffect
                     widestSubtitleBlockPx = maxOf(widestSubtitleBlockPx ?: 0f, widest)
                 }
                 LaunchedEffect(subtitleWidthKey, subtitleCueState) {
@@ -1912,6 +1913,7 @@ fun PlayerScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 StreamSourcesSidePanel(
                     uiState = uiState,
+                    currentFilename = viewModel.playerStreamFilename(),
                     streamsFocusRequester = sourceStreamsFocusRequester,
                     onClose = {
                         if (uiState.currentStreamUrl.isNullOrBlank()) {
@@ -2059,6 +2061,8 @@ fun PlayerScreen(
             persistAmplification = uiState.persistAudioAmplification,
             centerMixLevelDb = uiState.centerMixLevelDb,
             isCenterMixAvailable = uiState.isCenterMixAvailable,
+            nightMode = uiState.nightMode,
+            isNightModeAvailable = uiState.isNightModeAvailable,
             onTrackSelected = { viewModel.onEvent(PlayerEvent.OnSelectAudioTrack(it)) },
             onAudioDelayChange = { viewModel.onEvent(PlayerEvent.OnSetAudioDelayMs(it)) },
             onAmplificationChange = { viewModel.onEvent(PlayerEvent.OnSetAudioAmplificationDb(it)) },
@@ -2068,6 +2072,7 @@ fun PlayerScreen(
             onCenterMixLevelChange = {
                 viewModel.onEvent(PlayerEvent.OnSetCenterMixLevelDb(it))
             },
+            onNightModeChange = { viewModel.onEvent(PlayerEvent.OnSetNightMode(it)) },
             onDismiss = { viewModel.onEvent(PlayerEvent.OnDismissTransientOverlay) },
             modifier = Modifier
                 .fillMaxSize()
@@ -3862,13 +3867,11 @@ private fun SubtitleDelayOverlay(
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = Color.White
             )
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Text(
-                    text = formatSubtitleDelay(subtitleDelayMs),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White.copy(alpha = 0.95f)
-                )
-            }
+            Text(
+                text = formatSubtitleDelay(subtitleDelayMs).keepLtr(),
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White.copy(alpha = 0.95f)
+            )
         }
 
         Spacer(modifier = Modifier.height(18.dp))

@@ -137,6 +137,7 @@ fun ModernHomeContent(
     onRequestTrailerPreview: (String, String, String?, String) -> Unit,
     onLoadMoreCatalog: (String, String, String) -> Unit,
     onRemoveContinueWatching: (String, Int?, Int?, Boolean) -> Unit,
+    onMarkContinueWatchingWatched: (ContinueWatchingItem) -> Unit = {},
     isCatalogItemWatched: (MetaPreview) -> Boolean = { false },
     onCatalogItemLongPress: (MetaPreview, String) -> Unit = { _, _ -> },
     onNavigateToFolderDetail: (String, String) -> Unit = { _, _ -> },
@@ -194,6 +195,7 @@ fun ModernHomeContent(
                 com.nuvio.tv.ui.components.HeroCarousel(
                     items = uiState.heroItems.asStable(),
                     showImdbRatings = uiState.homeImdbRatingsVisibility.showRatings,
+                    descriptionAutoScrollEnabled = uiState.heroDescriptionAutoScrollEnabled,
                     onItemClick = { item ->
                         onNavigateToDetail(item.id, item.apiType, "")
                     },
@@ -1212,6 +1214,7 @@ fun ModernHomeContent(
                         state.fullScreenBackdrop && shouldPlayTrailerLambda() && heroTrailerRenderedLambda()
                     }
                 },
+                descriptionAutoScrollEnabled = uiState.heroDescriptionAutoScrollEnabled,
                 modifier = heroMetadataModifier
             )
 
@@ -1367,6 +1370,15 @@ fun ModernHomeContent(
             showPlayManually = showContinueWatchingManualPlayOption,
             onPlayManually = {
                 onContinueWatchingPlayManually(selectedOptionsItem)
+                optionsItem.value = null
+            },
+            onMarkWatched = {
+                val targetIndex = if (uiState.continueWatchingItems.size <= 1) null
+                else lastFocusedContinueWatchingIndex.intValue.coerceAtMost(uiState.continueWatchingItems.lastIndex)
+                pendingRowFocusKey.value = if (targetIndex != null) "continue_watching" else null
+                pendingRowFocusIndex.value = targetIndex
+                pendingRowFocusNonce.intValue++
+                onMarkContinueWatchingWatched(selectedOptionsItem)
                 optionsItem.value = null
             }
         )

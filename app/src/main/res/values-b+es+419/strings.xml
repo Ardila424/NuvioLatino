@@ -823,6 +823,17 @@
     <string name="audio_preferred_lang">Idioma de Audio Preferido</string>
     <string name="audio_skip_silence">Omitir Silencios</string>
     <string name="audio_skip_silence_sub">Omitir las partes silenciosas del audio durante la reproducción</string>
+    <string name="audio_night_mode">Modo nocturno</string>
+    <string name="audio_night_mode_sub">Realza los diálogos y los sonidos suaves para que puedas mantener el volumen bajo</string>
+    <string name="audio_night_mode_desc">Realza los diálogos y los sonidos suaves; las escenas fuertes conservan su mezcla original. Funciona con el audio que decodifica la app. El audio Dolby y DTS enviado a un receptor o una barra de sonido como passthrough se mantiene sin cambios.</string>
+    <string name="audio_night_mode_value">Modo nocturno: %1$s</string>
+    <string name="audio_night_mode_off">Desactivado</string>
+    <string name="audio_night_mode_light">Suave</string>
+    <string name="audio_night_mode_light_desc">Realce ligero, hasta +6 dB</string>
+    <string name="audio_night_mode_medium">Medio</string>
+    <string name="audio_night_mode_medium_desc">Realza claramente los diálogos, hasta +10 dB</string>
+    <string name="audio_night_mode_strong">Intenso</string>
+    <string name="audio_night_mode_strong_desc">Hasta +15 dB, para ver contenido de noche con el volumen bajo</string>
     <string name="audio_remember_delay_per_device">Recordar retraso de audio por dispositivo</string>
     <string name="audio_remember_delay_per_device_sub">Guardar y restaurar el retraso de audio del reproductor para la salida de audio actual</string>
     <string name="audio_advanced_section">Audio Avanzado</string>
@@ -916,10 +927,21 @@
     <string name="sub_hdr_style_sub">Usa un color de texto diferente y un brillo más tenue para los subtítulos en vídeos con HDR y Dolby Vision</string>
     <string name="sub_hdr_text_color">Color de texto en HDR</string>
     <string name="sub_hdr_brightness">Brillo de subtítulos en HDR</string>
+    <string name="sub_hdr_dim_player_controls">Atenuar controles del reproductor en HDR</string>
+    <string name="sub_hdr_dim_player_controls_sub">Aplica el brillo HDR a los controles y menús del reproductor que aparecen sobre videos HDR y Dolby Vision</string>
     <string name="sub_advanced_section">Renderizado Avanzado de Subtítulos</string>
     <string name="sub_libass">Usar libass para subtítulos ASS/SSA</string>
     <string name="sub_libass_sub">Renderizado avanzado ASS/SSA (estilos, posicionamiento, animaciones)</string>
     <string name="sub_libass_mode">Modo de Renderizado Libass</string>
+    <string name="sub_libass_render_scale">Resolución de renderizado de subtítulos</string>
+    <string name="sub_libass_render_scale_sub">Una resolución más baja mejora el rendimiento con estilos complejos, a costa de nitidez</string>
+    <string name="sub_libass_render_mode">Modo de renderizado ASS</string>
+    <string name="sub_libass_render_mode_sub">Cómo se dibujan los subtítulos ASS/SSA sobre el video</string>
+    <string name="sub_libass_render_mode_tunneled_sub">La reproducción con túnel omite el procesamiento de efectos de video. Se usa automáticamente la superposición.</string>
+    <string name="sub_libass_render_mode_video_effect">Efecto de video</string>
+    <string name="sub_libass_render_mode_video_effect_sub">Dibuja los subtítulos directamente sobre cada fotograma del video. Ofrece sincronización precisa en todo el hardware. El contenido HDR se convierte a SDR mediante mapeo de tonos.</string>
+    <string name="sub_libass_render_mode_overlay">Superposición</string>
+    <string name="sub_libass_render_mode_overlay_sub">Renderiza los subtítulos en una capa de superficie separada. Conserva la salida HDR. En algunos dispositivos, la sincronización de los subtítulos podría no ser perfectamente precisa.</string>
     <string name="sub_org_none">Ninguno (orden predeterminado)</string>
     <string name="sub_org_by_lang">Por idioma</string>
     <string name="sub_org_by_addon">Por addon</string>
@@ -1961,6 +1983,12 @@
     <string name="audio_maintain_original_audio_on_downmix_title">Mantener audio original en mezcla descendente</string>
     <string name="audio_maintain_original_audio_on_downmix_subtitle">Cuando está deshabilitado, la normalización de la mezcla descendente puede reducir el volumen general.</string>
 
+    <string name="audio_downmix_lfe_level">Nivel LFE al mezclar canales</string>
+    <string name="audio_downmix_lfe_level_sub">Mezcla el canal del subwoofer (LFE) con los demás altavoces en lugar de descartarlo. Solo se usa en distribuciones sin LFE, como 2.0.</string>
+    <string name="audio_downmix_lfe_level_desc">Se usa cuando la distribución de mezcla no tiene un canal LFE. Se aplica a partir de la próxima reproducción.</string>
+    <string name="audio_downmix_lfe_level_off">Desactivado</string>
+    <string name="audio_downmix_lfe_level_half">50%</string>
+    <string name="audio_downmix_lfe_level_full">100%</string>
     <string name="subtitle_dialog_title">Subtítulos</string>
     <string name="subtitle_no_builtin">No hay subtítulos integrados disponibles</string>
     <string name="subtitle_loading_addon">Cargando subtítulos de los addons\u2026</string>
@@ -2572,6 +2600,12 @@
     <string name="cd_remove">Eliminar</string>
     <string name="cd_preview">Vista previa</string>
     <string name="cd_test">Probar</string>
+    <string name="cd_enable_scraper">Activar %1$s</string>
+    <string name="cd_enable_addon">Activar %1$s</string>
+    <string name="cd_color_swatch">Muestra de color %1$s</string>
+    <string name="cd_emoji_option">Emoji %1$s</string>
+    <string name="cd_trailer_controls">Controles del tráiler</string>
+    <string name="cd_seek_bar">Barra de búsqueda</string>
     <string name="cd_unlink">Desvincular</string>
     <string name="cd_nuvio_logo">NuvioTV</string>
     <string name="cd_trakt_logo">Logo de Trakt</string>
@@ -3410,8 +3444,6 @@
     <string name="autosync_tolerance_value">%1$d ms</string>
     <string name="autosync_thorough_title">Búsqueda exhaustiva de sincronización automática</string>
     <string name="autosync_thorough_description">Continúa comparando otros subtítulos y pistas integradas para encontrar una coincidencia más precisa antes de sincronizar. Cuando está desactivada, se utiliza antes la primera coincidencia sólida. Solo se aplican coincidencias confiables.</string>
-    <string name="autosync_toast_failed">Error de sincronización: la sincronización automática no pudo hacer coincidir este subtítulo con el video.</string>
-    <string name="autosync_toast_failed_no_reference">Error de sincronización: este video no tiene subtítulos integrados para comparar.</string>
-    <string name="autosync_toast_failed_unsupported">Error de sincronización: la sincronización automática no admite este formato de subtítulos.</string>
+    <string name="autosync_toast_no_fit">Error de sincronización: estos subtítulos no coinciden con esta versión del video.</string>
     <string name="autosync_label_synced">Sincronizado automáticamente</string>
     </resources>

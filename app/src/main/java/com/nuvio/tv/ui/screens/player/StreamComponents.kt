@@ -28,6 +28,7 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -283,6 +284,19 @@ private fun InlineStreamBadges(
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
+/**
+ * Chips sit in a LazyRow, so a chip scrolled out of view has no focus node and
+ * requestFocus() on it fails without moving focus. Scroll it into the row first.
+ */
+internal suspend fun LazyListState.focusChip(index: Int, chipFocusRequesters: List<FocusRequester>): Boolean {
+    val requester = chipFocusRequesters.getOrNull(index) ?: return false
+    if (layoutInfo.visibleItemsInfo.none { it.index == index }) {
+        scrollToItem(index)
+        withFrameNanos {}
+    }
+    return runCatching { requester.requestFocus() }.getOrDefault(false)
+}
+
 @Composable
 internal fun AddonFilterChips(
     addons: List<String>,
@@ -295,6 +309,7 @@ internal fun AddonFilterChips(
     externalOrderedNames: List<String>? = null,
     onUpKey: (() -> Unit)? = null,
     onFocusIndexChanged: (Int) -> Unit = {},
+    chipListState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     debugTag: String = "AddonFilterChips"
 ) {
     val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
@@ -383,7 +398,6 @@ internal fun AddonFilterChips(
         }
     }
 
-    val chipListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     LaunchedEffect(focusedChipIndex) {
         if (focusedChipIndex >= 0 && !chipRowHasFocus) {

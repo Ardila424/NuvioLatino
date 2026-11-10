@@ -75,6 +75,7 @@ import coil3.request.allowHardware
 import coil3.size.Precision
 import com.nuvio.tv.ui.components.ImdbRatingSourceLabel
 import com.nuvio.tv.ui.components.TrailerPlayer
+import com.nuvio.tv.ui.components.AutoScrollingText
 import androidx.compose.ui.res.stringResource
 
 private data class ModernHeroSecondaryMeta(
@@ -195,7 +196,7 @@ internal fun ModernHeroMediaLayer(
     Box(modifier = modifier) {
         androidx.compose.animation.Crossfade(
             targetState = imageModel,
-            animationSpec = tween(durationMillis = 260),
+            animationSpec = tween(durationMillis = MODERN_HERO_TRANSITION_MS),
             label = "heroBackdropCrossfade"
         ) { model ->
             AsyncImage(
@@ -335,6 +336,7 @@ internal fun HeroTitleBlock(
     mdbListShowOnHero: Boolean = false,
     mdbListRatingOrder: List<String> = com.nuvio.tv.domain.model.MDBListSettings.DEFAULT_RATING_ORDER,
     trailerPlaying: () -> Boolean = { false },
+    descriptionAutoScrollEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val latestPreviewProvider = rememberUpdatedState(previewProvider)
@@ -361,7 +363,7 @@ internal fun HeroTitleBlock(
     val displayPreview = if (isEnriching) displayedPreview else (displayedPreview ?: previewProvider())
     if (displayPreview == null) return
     
-    // The text block moves with the same 260 ms timing as the backdrop crossfade. It is keyed on the
+    // The text block moves with the same timing (MODERN_HERO_TRANSITION_MS) as the backdrop crossfade. It is keyed on the
     // title, so rating or genre updates for the same movie change in place without animating again.
     Box(
         modifier = modifier,
@@ -371,9 +373,9 @@ internal fun HeroTitleBlock(
             targetState = displayPreview,
             contentKey = { it.title },
             transitionSpec = {
-                (slideInVertically(tween(260, easing = FastOutSlowInEasing)) { fullHeight -> fullHeight / 20 } +
-                    fadeIn(tween(260, easing = FastOutSlowInEasing), initialAlpha = 0.6f))
-                    .togetherWith(fadeOut(tween(260)))
+                (slideInVertically(tween(MODERN_HERO_TRANSITION_MS, easing = FastOutSlowInEasing)) { fullHeight -> fullHeight / 20 } +
+                    fadeIn(tween(MODERN_HERO_TRANSITION_MS, easing = FastOutSlowInEasing), initialAlpha = 0.6f))
+                    .togetherWith(fadeOut(tween(MODERN_HERO_TRANSITION_MS)))
                     .using(SizeTransform(clip = false))
             },
             label = "heroTitleTransition"
@@ -384,7 +386,8 @@ internal fun HeroTitleBlock(
             showImdbRatings = showImdbRatings,
             mdbListShowOnHero = mdbListShowOnHero,
             mdbListRatingOrder = mdbListRatingOrder,
-            trailerPlaying = trailerPlaying
+            trailerPlaying = trailerPlaying,
+            descriptionAutoScrollEnabled = descriptionAutoScrollEnabled
         )
         }
     }
@@ -397,7 +400,8 @@ private fun HeroTitleContent(
     showImdbRatings: Boolean,
     mdbListShowOnHero: Boolean = false,
     mdbListRatingOrder: List<String> = com.nuvio.tv.domain.model.MDBListSettings.DEFAULT_RATING_ORDER,
-    trailerPlaying: () -> Boolean = { false }
+    trailerPlaying: () -> Boolean = { false },
+    descriptionAutoScrollEnabled: Boolean = false
 ) {
     val preview = previewProvider() ?: return
     val highlighterEnabled = LocalRecompositionHighlighterEnabled.current
@@ -705,12 +709,13 @@ private fun HeroTitleContent(
         }
 
         preview.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Text(
+            AutoScrollingText(
                 text = description,
                 style = scaledDescriptionStyle.copy(textDirection = description.contentTextDirection()),
                 color = NuvioTheme.colors.TextPrimary,
                 maxLines = descriptionMaxLines,
-                overflow = TextOverflow.Ellipsis,
+                autoScrollEnabled = descriptionAutoScrollEnabled,
+                paused = trailerPlaying,
                 modifier = Modifier.graphicsLayer { alpha = metaAlpha }
             )
         }
