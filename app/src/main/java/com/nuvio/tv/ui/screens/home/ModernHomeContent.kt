@@ -276,6 +276,7 @@ fun ModernHomeContent(
     val expandedCatalogFocusKey = remember { mutableStateOf<String?>(null) }
     val focusedHeroMediaNonce = remember { mutableIntStateOf(0) }
     var endedCollectionHeroVideoPlaybackKey by remember { mutableStateOf<String?>(null) }
+    var endedHeroTrailerFocusKey by remember { mutableStateOf<String?>(null) }
     val expansionInteractionNonce = remember { mutableIntStateOf(0) }
 
     // Improved Back navigation: when focused item is not the first in a row,
@@ -350,6 +351,7 @@ fun ModernHomeContent(
         ) {
             // Always clear first so sidebar open / selection change collapses immediately.
             expandedCatalogFocusKey.value = null
+            endedHeroTrailerFocusKey = null
             if (!shouldActivateFocusedPosterFlow) return@LaunchedEffect
             if (isSidebarExpanded.value) return@LaunchedEffect
             if (verticalRowListState.isScrollInProgress) return@LaunchedEffect
@@ -859,6 +861,7 @@ fun ModernHomeContent(
             val heroTrailerUrlsState = remember(trailerPreviewUrls, trailerPreviewAudioUrls) {
                 derivedStateOf {
                     val expandedFocusedSelection = expandedFocusedSelectionState.value
+                        ?.takeIf { it.focusKey != endedHeroTrailerFocusKey }
                     val itemId = (expandedFocusedSelection?.payload as? ModernPayload.Catalog)?.itemId
                     val url = itemId?.let { trailerPreviewUrls[it] }
                     val audioUrl = itemId?.let { trailerPreviewAudioUrls[it] }
@@ -1159,7 +1162,7 @@ fun ModernHomeContent(
                     if (shouldPlayCollectionHeroVideoState.value && collectionHeroVideoPlaybackKey != null) {
                         endedCollectionHeroVideoPlaybackKey = collectionHeroVideoPlaybackKey
                     } else {
-                        expandedCatalogFocusKey.value = null
+                        endedHeroTrailerFocusKey = expandedCatalogFocusKey.value
                     }
                 }
             }
