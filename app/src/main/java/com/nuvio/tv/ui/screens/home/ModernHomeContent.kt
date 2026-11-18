@@ -1186,9 +1186,6 @@ fun ModernHomeContent(
                 label = "trailerContentFade"
             )
 
-            val shouldPlayTrailerLambda = remember { { shouldPlayCatalogHeroTrailerUpdated || shouldPlayCollectionHeroVideoUpdated } }
-            val heroTrailerRenderedLambda = remember { { heroTrailerFirstFrameRenderedUpdated } }
-
             val heroMetadataModifier = remember(rowHorizontalPadding, rowsViewportHeight) {
                 Modifier
                     .align(Alignment.BottomStart)
@@ -1211,11 +1208,7 @@ fun ModernHomeContent(
                 mdbListShowOnHero = uiState.mdbListShowOnHero,
                 mdbListRatingOrder = uiState.mdbListRatingOrder,
                 trailerPlaying = {
-                    if (isRapidHorizontalNav.value) false
-                    else {
-                        val state = heroSceneStateLambda()
-                        state.fullScreenBackdrop && shouldPlayTrailerLambda() && heroTrailerRenderedLambda()
-                    }
+                    !isRapidHorizontalNav.value && isTrailerPlayingFullscreenState.value
                 },
                 descriptionAutoScrollEnabled = uiState.heroDescriptionAutoScrollEnabled,
                 modifier = heroMetadataModifier
