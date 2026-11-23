@@ -1786,17 +1786,17 @@
 
 
     <string name="stream_filter_remux">REMUX</string>
-    <string name="stream_filter_latino_verified">Solo Latino</string>
-    <string name="stream_filter_spanish">Español / Latino</string>
-    <string name="stream_filter_4k">4K UHD</string>
+    <string name="stream_filter_latino_verified">Latino</string>
+    <string name="stream_filter_spanish">Español</string>
+    <string name="stream_filter_4k">4K</string>
 
     <string name="stream_sort_label">Orden:</string>
-    <string name="stream_sort_best_latino">Mejor con Latino</string>
+    <string name="stream_sort_best_latino">Latino 1º</string>
     <string name="stream_sort_quality">Calidad</string>
     <string name="stream_sort_size">Tamaño</string>
     <string name="stream_toolbar_source">Fuente</string>
     <string name="stream_toolbar_sort">Orden</string>
-    <string name="stream_filter_latino_hint">Comprobado %1$d de %2$d fuentes · %3$d verificados en archivo · %4$d por nombre.</string>
+    <string name="stream_filter_latino_hint">Comprobado %1$d de %2$d REMUX · %3$d verificados en archivo · %4$d por nombre.</string>
     <string name="stream_filter_verify_more">Verificar más</string>
     <string name="stream_resume_from_time">Reanudar desde %1$s</string>
     <string name="stream_resume_from_percent">Reanudar desde %1$d%%</string>

@@ -173,7 +173,7 @@ fun QuickFilterChips(
                 }
             }
     ) {
-        itemsIndexed(options) { _, option ->
+        itemsIndexed(options) { index, option ->
             val isSelected = selectedFilter == option.filter
             val labelText = stringResource(option.labelRes)
             val displayText = "${option.icon}$labelText (${option.count})"
@@ -190,8 +190,23 @@ fun QuickFilterChips(
                 onClick = { onFilterSelected(option.filter) },
                 modifier = Modifier
                     .focusRequester(focusRequesters.getOrElse(option.filter.ordinal) { FocusRequester() })
-                    .height(32.dp)
-                    .onFocusChanged { isFocused = it.isFocused },
+                    .height(28.dp)
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .onKeyEvent { event ->
+                        // Left/right selects the neighbouring filter straight away, so the
+                        // user does not need OK. The target is never the active filter, so
+                        // this cannot toggle back to ALL.
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        val step = when (event.key) {
+                            Key.DirectionLeft -> -1
+                            Key.DirectionRight -> 1
+                            else -> return@onKeyEvent false
+                        }
+                        val target = options.getOrNull(index + step) ?: return@onKeyEvent false
+                        onFilterSelected(target.filter)
+                        focusRequesters.getOrNull(target.filter.ordinal)?.requestFocus()
+                        true
+                    },
                 colors = FilterChipDefaults.colors(
                     containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f),
                     focusedContainerColor = NuvioTheme.colors.Secondary,

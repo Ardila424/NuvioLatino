@@ -3,9 +3,11 @@ package com.nuvio.tv.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -130,6 +132,65 @@ fun StreamToolbarChip(
                 )
             }
         }
+    }
+}
+
+/**
+ * Plain-text menu control for the source and sort settings. Unlike the pill
+ * filter chips below it, it has no background: the focused item gets an
+ * underline, so the two rows read differently.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun StreamToolbarText(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Column(
+        modifier = modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .clickable(onClick = onClick)
+            .onFocusChanged { isFocused = it.isFocused }
+            // Size to the text row: the fillMaxWidth underline below would
+            // otherwise stretch this item across the whole toolbar row.
+            .width(IntrinsicSize.Max)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = NuvioTheme.colors.TextTertiary,
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                modifier = Modifier.widthIn(max = 220.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isFocused) NuvioTheme.colors.Primary else NuvioTheme.colors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "▾",
+                style = MaterialTheme.typography.labelSmall,
+                color = NuvioTheme.colors.TextTertiary
+            )
+        }
+        Box(
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(if (isFocused) NuvioTheme.colors.Primary else Color.Transparent)
+        )
     }
 }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.R
+import com.nuvio.tv.core.debrid.DebridProviders
 import com.nuvio.tv.core.debrid.DebridStreamPresentation
 import com.nuvio.tv.core.debrid.DirectDebridResolveResult
 import com.nuvio.tv.core.debrid.DirectDebridResolver
@@ -32,6 +33,7 @@ import com.nuvio.tv.core.streams.StreamAudioProbeService
 import com.nuvio.tv.core.tmdb.TmdbService
 import java.util.concurrent.ConcurrentHashMap
 import com.nuvio.tv.core.debrid.StreamTextSizeParser
+import com.nuvio.tv.core.streams.AudioProbeCachePolicy
 import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePresentation
 import com.nuvio.tv.core.streams.YouTubeStreamResolver
@@ -90,6 +92,10 @@ private const val TAG = "StreamScreenViewModel"
 private const val DIRECT_AUTOPLAY_HARD_TIMEOUT_MS = 60_000L
 private const val STREAM_FILTER_PAGE_SIZE = 100
 private const val BATCH_PROBE_COUNT = 8
+
+/** Real network verifications allowed per "Verificar más" click. */
+private const val VERIFY_MORE_BUDGET = 6
+private const val NO_AUDIO_DATA_BADGE = "❔ Sin datos de audio"
 private const val BATCH_PROBE_CONCURRENCY = 2
 private const val FOCUS_PROBE_DELAY_MS = 1_200L
 
@@ -141,6 +147,8 @@ class StreamScreenViewModel @Inject constructor(
     private var playbackMetaVideos: List<Video>? = null
     private var streamFocusProbeJob: Job? = null
     private val probedStreamKeys = ConcurrentHashMap.newKeySet<String>()
+    /** Cache keys already re-checked by "Verificar más" in this session (each is forced once). */
+    private val forcedThisSession = ConcurrentHashMap.newKeySet<String>()
     private var batchProbeStarted = false
     private var batchProbeJob: Job? = null
     private val batchProbeSemaphore = Semaphore(BATCH_PROBE_CONCURRENCY)
@@ -351,7 +359,7 @@ class StreamScreenViewModel @Inject constructor(
         // (Lat/Latino/MX) without any debrid call. Focus probing stays REMUX
         // only, where reading the real file header is worth the API cost.
         if (!NativeStreamBadgeDetector.isRemux(stream)) return
-        if (!stream.isSafeToProbe()) return
+        if (!stream.isSafeToProbe() && !stream.isUnknownCacheTorbox()) return
         val key = stream.badgeMergeKey()
         if (probedStreamKeys.contains(key)) return
 
@@ -367,6 +375,7 @@ class StreamScreenViewModel @Inject constructor(
                     // Remember inconclusive results too: re-probing them on every
                     // focus event wastes debrid quota for no new information.
                     probedStreamKeys.add(key)
+                    applyInconclusiveProbe(stream)
                 }
                 is StreamAudioProbeResult.RateLimited -> Unit
             }
@@ -385,15 +394,33 @@ class StreamScreenViewModel @Inject constructor(
         val allStreams = _uiState.value.allStreams
         if (allStreams.isEmpty()) return
         batchProbeStarted = true
-        val candidates = allStreams
-            .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
-            .sortedWith(
-                compareByDescending<Stream> { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
-                    .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
-            )
-            .take(BATCH_PROBE_COUNT)
+        val candidates = balancedRemuxCandidates(allStreams).take(BATCH_PROBE_COUNT)
         batchProbeJob = viewModelScope.launch { runBatchProbe(candidates) }
     }
+
+    /**
+     * REMUX candidates ordered so 4K and 1080p both get a share. Sorting by size
+     * alone let the huge 4K files fill every slot and 1080p REMUX never got probed.
+     * Explicit Latino markers still come first within each resolution group.
+     */
+    private fun balancedRemuxCandidates(streams: List<Stream>): List<Stream> {
+        val ordering = compareByDescending<Stream> { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
+            .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+        val remux = streams.filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
+        val uhd = remux.filter { NativeStreamBadgeDetector.is4K(it) }.sortedWith(ordering)
+        val other = remux.filterNot { NativeStreamBadgeDetector.is4K(it) }.sortedWith(ordering)
+        return buildList {
+            val max = maxOf(uhd.size, other.size)
+            for (i in 0 until max) {
+                uhd.getOrNull(i)?.let { add(it) }
+                other.getOrNull(i)?.let { add(it) }
+            }
+        }
+    }
+
+    /** Probe state for a stream: already has a file or name verdict badge. */
+    private fun Stream.hasLatinoVerdict(): Boolean =
+        badges.any { it.name.contains("LATINO (Verificado)") || it.name.startsWith("🚫 Sin Latino") }
 
     /**
      * Debrid providers may add an uncached torrent to the account while
@@ -405,6 +432,18 @@ class StreamScreenViewModel @Inject constructor(
         val resolve = clientResolve ?: return true
         if (!resolve.type.equals("debrid", ignoreCase = true)) return true
         return resolve.isCached == true || debridCacheStatus?.state == StreamDebridCacheState.CACHED
+    }
+
+    /**
+     * TorBox streams whose cache state is still unknown. TorBox only adds torrents
+     * that are already cached when resolving, so a focus probe cannot grow the
+     * account. Real-Debrid and Premiumize stay blocked until the cache is confirmed.
+     */
+    private fun Stream.isUnknownCacheTorbox(): Boolean {
+        val resolve = clientResolve ?: return false
+        if (!resolve.type.equals("debrid", ignoreCase = true)) return false
+        if (!DebridProviders.TORBOX_ID.equals(resolve.service, ignoreCase = true)) return false
+        return resolve.isCached != false && debridCacheStatus?.state != StreamDebridCacheState.NOT_CACHED
     }
 
     /**
@@ -430,21 +469,63 @@ class StreamScreenViewModel @Inject constructor(
     fun probeMoreStreams() {
         if (!latinoFeaturesEnabled) return
         if (batchProbeJob?.isActive == true) return
-        val allStreams = _uiState.value.allStreams
-        if (allStreams.isEmpty()) return
-        val candidates = allStreams
-            .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
-            .sortedWith(
-                compareByDescending<Stream> { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
-                    .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
-            )
-            .filter { !probedStreamKeys.contains(it.badgeMergeKey()) }
-            .take(BATCH_PROBE_COUNT)
-        if (candidates.isEmpty()) return
-        batchProbeJob = viewModelScope.launch { runBatchProbe(candidates) }
+        if (_uiState.value.allStreams.isEmpty()) return
+        batchProbeJob = viewModelScope.launch {
+            // 1) Stored verdicts first: free, no API call.
+            applyCachedVerdicts()
+            // 2) Stop early if the best tier already has a verified Latino stream.
+            if (hasBestTierLatinoVerified(_uiState.value.allStreams)) return@launch
+            // 3) Budgeted real checks. Each stream is forced at most once per session.
+            val candidates = rankLatinoRemux(_uiState.value.allStreams)
+                .filter { !it.hasLatinoVerdict() && !forcedThisSession.contains(AudioProbeCachePolicy.cacheKey(it)) }
+                .take(VERIFY_MORE_BUDGET)
+            if (candidates.isEmpty()) return@launch
+            candidates.forEach { forcedThisSession.add(AudioProbeCachePolicy.cacheKey(it)) }
+            runBatchProbe(candidates, forceRefresh = true, stopOnBestTier = true)
+        }
     }
 
-    private suspend fun runBatchProbe(candidates: List<Stream>) {
+    /** Applies stored Latino verdicts to REMUX rows without touching the network. */
+    private suspend fun applyCachedVerdicts() {
+        _uiState.value.allStreams
+            .filter { NativeStreamBadgeDetector.isRemux(it) && !it.hasLatinoVerdict() }
+            .forEach { stream ->
+                val cached = streamAudioProbeService.cachedProbeResult(stream)
+                if (cached is StreamAudioProbeResult.Success) {
+                    probedStreamKeys.add(stream.badgeMergeKey())
+                    applyProbedStreamResult(stream, cached)
+                } else if (cached is StreamAudioProbeResult.Inconclusive) {
+                    applyInconclusiveProbe(stream)
+                }
+            }
+    }
+
+    /** Ranking for Latino REMUX: 4K first, then explicit Latino markers, then size. */
+    private fun rankLatinoRemux(streams: List<Stream>): List<Stream> =
+        streams
+            .filter { NativeStreamBadgeDetector.isRemux(it) && it.isSafeToProbe() }
+            .sortedWith(
+                compareByDescending<Stream> { NativeStreamBadgeDetector.is4K(it) }
+                    .thenByDescending { NativeStreamBadgeDetector.hasExplicitLatinoMarker(it) }
+                    .thenByDescending { StreamTextSizeParser.effectiveSizeBytes(it) ?: 0L }
+            )
+            .distinctBy { AudioProbeCachePolicy.cacheKey(it) }
+
+    /** True when a verified Latino REMUX exists at the best resolution present (4K if any, else 1080p). */
+    private fun hasBestTierLatinoVerified(streams: List<Stream>): Boolean {
+        val remux = streams.filter { NativeStreamBadgeDetector.isRemux(it) }
+        val has4k = remux.any { NativeStreamBadgeDetector.is4K(it) }
+        return remux.any { stream ->
+            NativeStreamBadgeDetector.is4K(stream) == has4k &&
+                stream.badges.any { it.name.contains("LATINO (Verificado)") }
+        }
+    }
+
+    private suspend fun runBatchProbe(
+        candidates: List<Stream>,
+        forceRefresh: Boolean = false,
+        stopOnBestTier: Boolean = false
+    ) {
         // Real concurrency: launch the candidates and let the semaphore cap
         // in-flight probes at BATCH_PROBE_CONCURRENCY.
         val stoppedByRateLimit = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -452,18 +533,24 @@ class StreamScreenViewModel @Inject constructor(
             candidates.forEach { stream ->
                 launch {
                     if (stoppedByRateLimit.get()) return@launch
+                    if (stopOnBestTier && hasBestTierLatinoVerified(_uiState.value.allStreams)) return@launch
                     val key = stream.badgeMergeKey()
-                    if (probedStreamKeys.contains(key)) return@launch
+                    if (!forceRefresh && probedStreamKeys.contains(key)) return@launch
                     batchProbeSemaphore.withPermit {
                         if (stoppedByRateLimit.get()) return@withPermit
+                        if (stopOnBestTier && hasBestTierLatinoVerified(_uiState.value.allStreams)) return@withPermit
                         ensureActive()
-                        when (val result = streamAudioProbeService.probeStreamAudio(stream, season, episode)) {
+                        val result = streamAudioProbeService.probeStreamAudio(
+                            stream, season, episode, forceRefresh
+                        )
+                        when (result) {
                             is StreamAudioProbeResult.Success -> {
                                 probedStreamKeys.add(key)
                                 applyProbedStreamResult(stream, result)
                             }
                             StreamAudioProbeResult.Inconclusive -> {
                                 probedStreamKeys.add(key)
+                                applyInconclusiveProbe(stream)
                             }
                             is StreamAudioProbeResult.RateLimited -> {
                                 Log.d(
@@ -508,18 +595,45 @@ class StreamScreenViewModel @Inject constructor(
             )
         }
 
-        if (newBadges.isEmpty()) return
+        // A file with no Spanish track and no language tags still got probed:
+        // show the neutral badge instead of leaving the row silent.
+        if (newBadges.isEmpty()) newBadges += noAudioDataBadge()
 
+        replaceProbeBadges(targetKey, newBadges, dropMulti = result.hasLatino)
+    }
+
+    /** The probe ran but read no audio languages (timeout, no URL, untagged tracks). */
+    private fun applyInconclusiveProbe(stream: Stream) {
+        if (stream.hasLatinoVerdict()) return
+        replaceProbeBadges(stream.badgeMergeKey(), listOf(noAudioDataBadge()), dropMulti = false, keepLatino = true)
+    }
+
+    private fun noAudioDataBadge() = StreamBadge(
+        name = NO_AUDIO_DATA_BADGE,
+        tagColor = "#374151",
+        textColor = "#D1D5DB",
+        borderColor = "#6B7280"
+    )
+
+    private fun replaceProbeBadges(
+        targetKey: String,
+        newBadges: List<StreamBadge>,
+        dropMulti: Boolean,
+        keepLatino: Boolean = false
+    ) {
         updateUiStateIfChanged { state ->
             val updatedAddonStreams = state.addonStreams.map { group ->
                 group.copy(
                     streams = group.streams.map { s ->
                         if (s.badgeMergeKey() == targetKey) {
                             val filteredBadges = s.badges.filterNot {
-                                it.name.contains("LATINO", ignoreCase = true) ||
-                                    it.name.contains("Sin Latino", ignoreCase = true) ||
-                                    it.name.contains("CASTELLANO", ignoreCase = true) ||
-                                    (result.hasLatino && it.name == "🌐 MULTI")
+                                it.name == NO_AUDIO_DATA_BADGE ||
+                                    (!keepLatino && (
+                                        it.name.contains("LATINO", ignoreCase = true) ||
+                                            it.name.contains("Sin Latino", ignoreCase = true) ||
+                                            it.name.contains("CASTELLANO", ignoreCase = true) ||
+                                            (dropMulti && it.name == "🌐 MULTI")
+                                        ))
                             }
                             s.copy(badges = filteredBadges + newBadges)
                         } else {

@@ -96,6 +96,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.nuvio.tv.core.player.ExternalPlayerLauncher
+import com.nuvio.tv.core.streams.NativeStreamBadgeDetector
 import com.nuvio.tv.core.streams.StreamBadgePlacement
 import com.nuvio.tv.core.util.AppLanguage
 import com.nuvio.tv.core.streams.StreamBadgeSettings
@@ -110,6 +111,7 @@ import com.nuvio.tv.ui.components.StreamOption
 import com.nuvio.tv.ui.components.StreamOptionDialog
 import com.nuvio.tv.ui.components.StreamRefreshChip
 import com.nuvio.tv.ui.components.StreamToolbarChip
+import com.nuvio.tv.ui.components.StreamToolbarText
 import com.nuvio.tv.ui.components.StreamsSkeletonList
 import com.nuvio.tv.ui.components.labelRes
 import com.nuvio.tv.ui.screens.player.LoadingOverlay
@@ -1013,7 +1015,7 @@ private fun RightStreamSection(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
                 ) {
-                    StreamToolbarChip(
+                    StreamToolbarText(
                         label = stringResource(R.string.stream_toolbar_source),
                         value = selectedAddonFilter ?: allSourcesLabel,
                         onClick = { showSourceMenu = true },
@@ -1027,7 +1029,7 @@ private fun RightStreamSection(
                             } else false
                         }
                     )
-                    StreamToolbarChip(
+                    StreamToolbarText(
                         label = stringResource(R.string.stream_toolbar_sort),
                         value = stringResource(visibleSortMode.labelRes()),
                         onClick = { showSortMenu = true },
@@ -1085,7 +1087,8 @@ private fun RightStreamSection(
                             text = stringResource(
                                 R.string.stream_filter_latino_hint,
                                 latinoProbeStats.first,
-                                activeStreamsForFilter.size,
+                                // Denominator is the REMUX candidates, not every source of the addon list.
+                                activeStreamsForFilter.count { NativeStreamBadgeDetector.isRemux(it) },
                                 latinoProbeStats.second,
                                 latinoProbeStats.third
                             ),
@@ -1476,28 +1479,9 @@ private fun StreamsList(
                 if (event.key == Key.DirectionDown) {
                     onUserNavigatedFromFirstResult()
                 }
-                if (orderedAddonNames.isEmpty()) return@onKeyEvent false
-                val allOptions = listOf<String?>(null) + orderedAddonNames
-                val currentIdx = allOptions.indexOf(selectedAddonFilter)
-                when (event.key) {
-                    Key.DirectionLeft -> {
-                        if (isRtl) {
-                            if (currentIdx < allOptions.lastIndex) { onAddonFilterSelected(allOptions[currentIdx + 1]); true } else true
-                        } else {
-                            if (currentIdx > 0) { onAddonFilterSelected(allOptions[currentIdx - 1]); true }
-                            else { true }
-                        }
-                    }
-                    Key.DirectionRight -> {
-                        if (isRtl) {
-                            if (currentIdx > 0) { onAddonFilterSelected(allOptions[currentIdx - 1]); true }
-                            else { true }
-                        } else {
-                            if (currentIdx < allOptions.lastIndex) { onAddonFilterSelected(allOptions[currentIdx + 1]); true } else true
-                        }
-                    }
-                    else -> false
-                }
+                // Left/right no longer switch the source from the list: the source is
+                // chosen from the Fuente menu or the chips, so focus stays where it is.
+                false
             },
         verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm),
         contentPadding = PaddingValues(start = NuvioTheme.spacing.sm, end = NuvioTheme.spacing.sm, top = NuvioTheme.spacing.sm, bottom = NuvioTheme.spacing.xxl)

@@ -1,6 +1,7 @@
 package com.nuvio.tv.core.streams
 
 import android.util.Log
+import com.nuvio.tv.core.debrid.DebridProviders
 import com.nuvio.tv.core.debrid.DirectDebridResolveResult
 import com.nuvio.tv.core.debrid.DirectDebridResolver
 import com.nuvio.tv.core.streams.parser.HlsPlaylistAudioParser
@@ -77,14 +78,19 @@ class StreamAudioProbeService @Inject constructor(
     suspend fun probeStreamAudio(
         stream: Stream,
         season: Int? = null,
-        episode: Int? = null
+        episode: Int? = null,
+        forceRefresh: Boolean = false
     ): StreamAudioProbeResult = withContext(Dispatchers.IO) {
         val cacheKey = AudioProbeCachePolicy.cacheKey(stream)
-        probeCache[cacheKey]?.let { return@withContext it }
+        // "Verify more" asks for a real check: skip cached outcomes (including
+        // earlier inconclusive ones) and probe the stream again.
+        if (!forceRefresh) {
+            probeCache[cacheKey]?.let { return@withContext it }
 
-        readPersistentCache(cacheKey)?.let { cached ->
-            probeCache[cacheKey] = cached
-            return@withContext cached
+            readPersistentCache(cacheKey)?.let { cached ->
+                probeCache[cacheKey] = cached
+                return@withContext cached
+            }
         }
 
         remainingCooldownMs()?.let { remaining ->
@@ -102,15 +108,27 @@ class StreamAudioProbeService @Inject constructor(
         val result = withTimeoutOrNull(PROBE_TIMEOUT_MS) {
             probeUrl(playableUrl)
         } ?: StreamAudioProbeResult.Inconclusive
+        Log.d(TAG, "Probe result for ${stream.addonName}: ${result::class.simpleName}")
 
         // Cache every terminal outcome. Inconclusive results are cached too so
         // focus events don't re-probe the same stream over and over. RateLimited
         // is host-wide and is handled by the cooldown instead.
         if (result !is StreamAudioProbeResult.RateLimited) {
+            // A forced re-check that times out must not erase an earlier real verdict.
+            val previous = probeCache[cacheKey] ?: readPersistentCache(cacheKey)
+            if (result is StreamAudioProbeResult.Inconclusive && previous is StreamAudioProbeResult.Success) {
+                return@withContext previous
+            }
             probeCache[cacheKey] = result
             writePersistentCache(cacheKey, result)
         }
         result
+    }
+
+    /** Stored verdict only: never touches the network or the debrid API. */
+    suspend fun cachedProbeResult(stream: Stream): StreamAudioProbeResult? = withContext(Dispatchers.IO) {
+        val cacheKey = AudioProbeCachePolicy.cacheKey(stream)
+        probeCache[cacheKey] ?: readPersistentCache(cacheKey)?.also { probeCache[cacheKey] = it }
     }
 
     private suspend fun readPersistentCache(cacheKey: String): StreamAudioProbeResult? =
@@ -368,6 +386,7 @@ class StreamAudioProbeService @Inject constructor(
 
         var hasLatino = false
         var hasCastellano = false
+        var spanishTracks = 0
         val detected = mutableListOf<String>()
 
         for (track in tracks) {
@@ -380,11 +399,21 @@ class StreamAudioProbeService @Inject constructor(
             }
 
             when (SpanishAudioRegionClassifier.classify(track.language, track.languageBcp47, track.name)) {
-                SpanishAudioRegion.LATINO -> hasLatino = true
-                SpanishAudioRegion.CASTELLANO, SpanishAudioRegion.SPANISH -> hasCastellano = true
+                SpanishAudioRegion.LATINO -> {
+                    hasLatino = true
+                    spanishTracks++
+                }
+                SpanishAudioRegion.CASTELLANO, SpanishAudioRegion.SPANISH -> {
+                    hasCastellano = true
+                    spanishTracks++
+                }
                 SpanishAudioRegion.OTHER -> Unit
             }
         }
+
+        // Two Spanish audio tracks in one file: one of them is almost always the
+        // Latino dub, even when neither the track nor the file name says so.
+        if (spanishTracks >= 2) hasLatino = true
 
         val distinctDetected = detected.distinct()
         if (distinctDetected.isEmpty() && !hasCastellano && !hasLatino) {
@@ -453,20 +482,39 @@ class StreamAudioProbeService @Inject constructor(
         val directUrl = stream.getStreamUrl()
         if (!directUrl.isNullOrBlank()) return directUrl
 
-        if (directDebridResolver.shouldResolveToPlayableStream(stream)) {
-            val resolveResult = directDebridResolver.resolve(stream, season, episode)
+        // The stream screen lets TorBox streams with an unknown cache state
+        // through (TorBox resolves with add_only_if_cached, so nothing is
+        // queued), but the resolver only accepts isCached == true. Without this
+        // the probe always ended Inconclusive for those rows.
+        val resolvable = stream.asTorboxCacheUnknownResolvable()
+        if (directDebridResolver.shouldResolveToPlayableStream(resolvable)) {
+            val resolveResult = directDebridResolver.resolve(resolvable, season, episode)
             if (resolveResult is DirectDebridResolveResult.Success) {
                 return resolveResult.url
             }
+            Log.d(TAG, "Debrid resolve for probe failed: $resolveResult")
+        } else {
+            Log.d(TAG, "No playable URL to probe (service=${stream.clientResolve?.service}, cached=${stream.clientResolve?.isCached})")
         }
         return null
+    }
+
+    private fun Stream.asTorboxCacheUnknownResolvable(): Stream {
+        val resolve = clientResolve ?: return this
+        if (resolve.isCached != null) return this
+        if (!resolve.type.equals("debrid", ignoreCase = true)) return this
+        if (!DebridProviders.TORBOX_ID.equals(resolve.service, ignoreCase = true)) return this
+        return copy(clientResolve = resolve.copy(isCached = true))
     }
 
     private companion object {
         /** 256 KB header window. */
         const val HEADER_RANGE_BYTES = 262_144L
 
-        /** Per-probe wall clock budget. */
-        const val PROBE_TIMEOUT_MS = 4_500L
+        /**
+         * Per-probe wall clock budget. Addon resolve URLs (Torrentio/Comet ->
+         * TorBox) redirect through the addon first; 4.5 s timed out on the TV.
+         */
+        const val PROBE_TIMEOUT_MS = 8_000L
     }
 }

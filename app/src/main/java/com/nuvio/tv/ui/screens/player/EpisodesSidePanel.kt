@@ -442,40 +442,11 @@ private fun EpisodeStreamsView(
                             userMovedFromFirstResult = true
                         }
 
-                        if (orderedAddonNames.isEmpty()) return@onKeyEvent false
-                        val allOptions = listOf<String?>(null) + orderedAddonNames
-                        val currentIdx = allOptions.indexOf(uiState.episodeSelectedAddonFilter)
+                        // Left/right no longer switch the source from the list. They are
+                        // consumed so focus does not escape the overlay.
                         when (event.key) {
-                            androidx.compose.ui.input.key.Key.DirectionLeft -> {
-                                if (isRtl) {
-                                    if (currentIdx < allOptions.lastIndex) {
-                                        onAddonFilterSelectedGuarded(allOptions[currentIdx + 1])
-                                        true
-                                    } else { true }
-                                } else {
-                                    if (currentIdx > 0) {
-                                        onAddonFilterSelectedGuarded(allOptions[currentIdx - 1])
-                                        true
-                                    } else {
-                                        true
-                                    }
-                                }
-                            }
-                            androidx.compose.ui.input.key.Key.DirectionRight -> {
-                                if (isRtl) {
-                                    if (currentIdx > 0) {
-                                        onAddonFilterSelectedGuarded(allOptions[currentIdx - 1])
-                                        true
-                                    } else {
-                                        true
-                                    }
-                                } else {
-                                    if (currentIdx < allOptions.lastIndex) {
-                                        onAddonFilterSelectedGuarded(allOptions[currentIdx + 1])
-                                        true
-                                    } else { true }
-                                }
-                            }
+                            androidx.compose.ui.input.key.Key.DirectionLeft,
+                            androidx.compose.ui.input.key.Key.DirectionRight -> true
                             else -> false
                         }
                     }
