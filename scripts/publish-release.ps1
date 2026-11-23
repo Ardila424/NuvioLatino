@@ -82,8 +82,14 @@ try {
     }
 
     Write-Host "Building release APKs..." -ForegroundColor Cyan
+    # Gradle writes warnings to stderr; with ErrorActionPreference=Stop, Windows PowerShell
+    # turns them into a terminating error. Judge the build by its exit code instead.
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & .\gradlew.bat :app:assembleFullRelease --console=plain
-    if ($LASTEXITCODE -ne 0) {
+    $gradleExit = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorAction
+    if ($gradleExit -ne 0) {
         [IO.File]::WriteAllText($gradlePath, $gradleBackup, (New-Object System.Text.UTF8Encoding($false)))
         Fail "Gradle falló. Restauré la versión anterior."
     }
